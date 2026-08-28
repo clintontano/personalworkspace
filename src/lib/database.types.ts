@@ -236,6 +236,112 @@ export type Database = {
           },
         ]
       }
+      form_submissions: {
+        Row: {
+          created_at: string
+          data: Json
+          form_id: string
+          id: string
+          row_page_id: string | null
+          workspace_id: string
+        }
+        Insert: {
+          created_at?: string
+          data?: Json
+          form_id: string
+          id?: string
+          row_page_id?: string | null
+          workspace_id: string
+        }
+        Update: {
+          created_at?: string
+          data?: Json
+          form_id?: string
+          id?: string
+          row_page_id?: string | null
+          workspace_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "form_submissions_form_id_fkey"
+            columns: ["form_id"]
+            isOneToOne: false
+            referencedRelation: "forms"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "form_submissions_row_page_id_fkey"
+            columns: ["row_page_id"]
+            isOneToOne: false
+            referencedRelation: "pages"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "form_submissions_workspace_id_fkey"
+            columns: ["workspace_id"]
+            isOneToOne: false
+            referencedRelation: "workspaces"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      forms: {
+        Row: {
+          created_at: string
+          created_by: string
+          database_id: string
+          description: string | null
+          enabled: boolean
+          fields: Json
+          id: string
+          slug: string
+          title: string
+          updated_at: string
+          workspace_id: string
+        }
+        Insert: {
+          created_at?: string
+          created_by?: string
+          database_id: string
+          description?: string | null
+          enabled?: boolean
+          fields?: Json
+          id?: string
+          slug: string
+          title?: string
+          updated_at?: string
+          workspace_id: string
+        }
+        Update: {
+          created_at?: string
+          created_by?: string
+          database_id?: string
+          description?: string | null
+          enabled?: boolean
+          fields?: Json
+          id?: string
+          slug?: string
+          title?: string
+          updated_at?: string
+          workspace_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "forms_database_id_fkey"
+            columns: ["database_id"]
+            isOneToOne: false
+            referencedRelation: "databases"
+            referencedColumns: ["page_id"]
+          },
+          {
+            foreignKeyName: "forms_workspace_id_fkey"
+            columns: ["workspace_id"]
+            isOneToOne: false
+            referencedRelation: "workspaces"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       google_connections: {
         Row: {
           access_token: string
@@ -336,6 +442,51 @@ export type Database = {
           },
           {
             foreignKeyName: "pages_workspace_id_fkey"
+            columns: ["workspace_id"]
+            isOneToOne: false
+            referencedRelation: "workspaces"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      sites: {
+        Row: {
+          created_at: string
+          id: string
+          page_id: string
+          published_at: string | null
+          slug: string
+          updated_at: string
+          workspace_id: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          page_id: string
+          published_at?: string | null
+          slug: string
+          updated_at?: string
+          workspace_id: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          page_id?: string
+          published_at?: string | null
+          slug?: string
+          updated_at?: string
+          workspace_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "sites_page_id_fkey"
+            columns: ["page_id"]
+            isOneToOne: false
+            referencedRelation: "pages"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "sites_workspace_id_fkey"
             columns: ["workspace_id"]
             isOneToOne: false
             referencedRelation: "workspaces"
@@ -455,8 +606,17 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      get_public_form: { Args: { p_slug: string }; Returns: Json }
+      get_public_site_page: {
+        Args: { p_page_id?: string; p_slug: string }
+        Returns: Json
+      }
       is_workspace_member: { Args: { ws_id: string }; Returns: boolean }
       is_workspace_owner: { Args: { ws_id: string }; Returns: boolean }
+      submit_public_form: {
+        Args: { p_data: Json; p_slug: string }
+        Returns: string
+      }
     }
     Enums: {
       [_ in never]: never

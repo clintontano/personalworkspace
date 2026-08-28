@@ -25,7 +25,9 @@ import { archivePage, renamePage } from "@/lib/pages";
 import { notifyPagesChanged } from "@/lib/realtime";
 import { updateRowProperties } from "@/lib/db/data";
 import { cn } from "@/lib/utils";
+import { ShareMenu } from "@/components/share/share-menu";
 import { BoardView } from "./board-view";
+import { FormsMenu } from "./forms-menu";
 import { CalendarView } from "./calendar-view";
 import { ListView } from "./list-view";
 import { TableView } from "./table-view";
@@ -208,6 +210,13 @@ export function DatabaseScreen({
           </DropdownMenu>
         </div>
         <div className="flex items-center gap-1">
+          <FormsMenu
+            databaseId={databasePageId}
+            workspaceId={workspaceId}
+            databaseTitle={title}
+            properties={properties}
+          />
+          <ShareMenu pageId={databasePageId} workspaceId={workspaceId} title={title} />
           {activeView ? (
             <ViewToolbar
               properties={properties}

@@ -18,7 +18,8 @@ test("tasks table renders, adds a row, opens row as page", async ({ page }) => {
   await page.getByTestId("add-row").click();
   await expect(page.locator("[data-row-title]")).toHaveCount(before + 1);
   const newTitle = `Task ${Date.now()}`;
-  const blank = page.locator('[data-row-title=""]');
+  // new rows are appended, so the last blank title is the one just created
+  const blank = page.locator('[data-row-title=""]').last();
   await blank.fill(newTitle);
   await blank.press("Enter");
 

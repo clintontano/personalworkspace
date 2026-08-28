@@ -89,6 +89,20 @@ completeness; the data must outlive the app (markdown/JSON export from Phase 2).
   backlinks/rollups force a junction table. Delete paths must clean up
   dangling refs.
 
+## Public surfaces (forms and sites)
+
+- **anon has no table policies at all.** Every public read/write goes through
+  a `security definer` RPC, so the public surface is fixed in SQL rather than
+  depending on route code holding a service-role key:
+  - `get_public_form(slug)` / `submit_public_form(slug, data)` — only enabled
+    forms; only property ids belonging to that form's database are accepted;
+    required fields enforced in SQL.
+  - `get_public_site_page(slug, page_id)` — only published sites, and only
+    pages inside the site root's subtree (recursive CTE check).
+- Public routes use `createPublicClient()` (anon key, no session), never the
+  service-role key. Routes: `/f/<slug>` forms, `/s/<slug>[/<pageId>]` sites.
+- Blocks are re-rendered read-only for sites (`components/public/render-blocks`).
+
 ## Google integration
 
 - OAuth is optional: without `GOOGLE_CLIENT_ID` / `GOOGLE_CLIENT_SECRET` the
@@ -126,7 +140,7 @@ completeness; the data must outlive the app (markdown/JSON export from Phase 2).
       (filter/sort/group), board view, query layer, markdown/JSON export
 - [x] **Phase 3 — Calendar**: calendar view over date properties; Google
       Calendar two-way sync (needs GOOGLE_CLIENT_ID/SECRET to activate)
-- [ ] **Phase 4 — Forms & sites**: public form → database row; publish page
+- [x] **Phase 4 — Forms & sites**: public form → database row; publish page
       tree to public slug
 - [ ] **Phase 5 — Automations**: declarative jsonb trigger/action rules, edge
       function evaluation, pg_cron scheduling

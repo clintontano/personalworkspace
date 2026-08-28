@@ -4,6 +4,7 @@ import dynamic from "next/dynamic";
 import { useCallback, useRef, useState } from "react";
 import type { BlockRowLike } from "@/lib/blocks/sync";
 import { PropertiesPanel } from "@/components/database/properties-panel";
+import { ShareMenu } from "@/components/share/share-menu";
 import type { Property, PropertyValue } from "@/lib/db/model";
 import { renamePage } from "@/lib/pages";
 import { notifyPagesChanged } from "@/lib/realtime";
@@ -46,13 +47,14 @@ export function PageView({
 
   return (
     <div className="mx-auto flex h-full max-w-3xl flex-col px-8 py-10">
-      <div className="mb-1 flex items-center justify-end">
+      <div className="mb-1 flex items-center justify-end gap-2">
         <span
           data-testid="save-state"
           className="text-xs text-muted-foreground"
         >
           {saveState === "saved" ? "Saved" : saveState === "saving" ? "Saving…" : "Save failed"}
         </span>
+        <ShareMenu pageId={pageId} workspaceId={workspaceId} title={title} />
       </div>
       <input
         data-testid="page-title"
