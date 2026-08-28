@@ -782,6 +782,18 @@ export type Database = {
       }
       is_workspace_member: { Args: { ws_id: string }; Returns: boolean }
       is_workspace_owner: { Args: { ws_id: string }; Returns: boolean }
+      search_workspace: {
+        Args: { p_limit?: number; p_query: string }
+        Returns: {
+          icon: string
+          is_database: boolean
+          is_row: boolean
+          page_id: string
+          rank: number
+          snippet: string
+          title: string
+        }[]
+      }
       submit_public_form: {
         Args: { p_data: Json; p_slug: string }
         Returns: string

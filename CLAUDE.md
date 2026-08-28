@@ -10,7 +10,8 @@ completeness; the data must outlive the app (markdown/JSON export from Phase 2).
 - Supabase: Postgres, Auth, Storage, Realtime, Edge Functions
   - Hosted project ref `phlgxknlswghfrkncovn` (linked via `supabase link`)
 - Block editor: **BlockNote** (approved; installed in Phase 1)
-- Utilities: `zod` (validation), `fractional-indexing` (order keys)
+- Utilities: `zod` (validation), `fractional-indexing` (order keys),
+  `@modelcontextprotocol/sdk` (Phase 6 MCP server)
 - Tests: Vitest for real logic, one Playwright happy path per phase (`e2e/`)
 
 ## Dev environment
@@ -89,6 +90,24 @@ completeness; the data must outlive the app (markdown/JSON export from Phase 2).
   backlinks/rollups force a junction table. Delete paths must clean up
   dangling refs.
 
+## MCP server
+
+- `mcp/server.mts` (stdio). See `mcp/README.md` for registering it with Claude
+  Code / Desktop.
+- **Runs under the user's RLS**: it signs in with MCP_USER_EMAIL/PASSWORD
+  (falling back to SEED_USER_*) and never touches the service-role key.
+- Tool logic lives in `src/lib/mcp/api.ts` so the app and the server share one
+  implementation of filters, sorts and markdown conversion.
+- Property references are forgiving: names or ids, option labels or ids
+  (`coerceValue` / `resolveProperty`, unit-tested).
+- `search_workspace` RPC is SECURITY INVOKER — the caller's RLS applies, so
+  search can only return what the caller can already read.
+- Phase 6's happy path is `npm run mcp:check` (drives the real server over
+  stdio, then cleans up) rather than a Playwright test — the deliverable has
+  no UI.
+- The file is `.mts`: tsx compiles `.ts` here as CJS, which rejects top-level
+  await and ESM-only SDK imports.
+
 ## Automations
 
 - Rules are declarative jsonb (`automations.trigger` / `.actions`) reusing the
@@ -166,6 +185,6 @@ completeness; the data must outlive the app (markdown/JSON export from Phase 2).
       tree to public slug
 - [x] **Phase 5 — Automations**: declarative jsonb trigger/action rules, edge
       function trigger, pg_cron scheduling (see note below)
-- [ ] **Phase 6 — MCP server**: search, read/create page, append blocks, query
-      database, create/update rows. stdio first.
+- [x] **Phase 6 — MCP server**: search, read/create page, append blocks, query
+      database, create/update rows (local stdio)
 - [ ] **Phase 7 — Mail**: Gmail OAuth inbox, thread → task row

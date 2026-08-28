@@ -13,12 +13,15 @@
     "test:e2e": "playwright test",
     "seed": "tsx scripts/seed.ts",
     "format": "prettier --write src scripts e2e",
-    "clean:e2e": "tsx scripts/clean-e2e.ts"
+    "clean:e2e": "tsx scripts/clean-e2e.ts",
+    "mcp": "tsx mcp/server.mts",
+    "mcp:check": "tsx scripts/mcp-smoke.mts"
   },
   "dependencies": {
     "@blocknote/core": "^0.54.0",
     "@blocknote/react": "^0.54.0",
     "@blocknote/shadcn": "^0.54.0",
+    "@modelcontextprotocol/sdk": "^1.30.0",
     "@supabase/ssr": "^0.12.5",
     "@supabase/supabase-js": "^2.109.0",
     "class-variance-authority": "^0.7.1",
