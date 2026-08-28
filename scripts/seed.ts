@@ -70,6 +70,7 @@ async function main() {
   }
 
   await seedPages(user.id, memberships[0].workspace_id as string);
+  await seedDatabases(user.id, memberships[0].workspace_id as string);
   console.log("Seed complete.");
 }
 
@@ -184,6 +185,186 @@ async function seedPages(userId: string, workspaceId: string) {
   ]);
 
   console.log("Seeded 3 pages with blocks.");
+}
+
+async function seedDatabases(userId: string, workspaceId: string) {
+  const { count } = await admin
+    .from("databases")
+    .select("page_id", { count: "exact", head: true })
+    .eq("workspace_id", workspaceId);
+  if ((count ?? 0) > 0) {
+    console.log("Databases already seeded.");
+    return;
+  }
+
+  const { keyAfter } = await import("../src/lib/order");
+  const { randomUUID } = await import("node:crypto");
+
+  const { data: lastPage } = await admin
+    .from("pages")
+    .select("order_key")
+    .eq("workspace_id", workspaceId)
+    .is("parent_page_id", null)
+    .order("order_key", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+  let rootKey = lastPage?.order_key ?? null;
+
+  const createDb = async (title: string, icon: string) => {
+    rootKey = keyAfter(rootKey);
+    const { data: page, error } = await admin
+      .from("pages")
+      .insert({
+        workspace_id: workspaceId,
+        title,
+        icon,
+        order_key: rootKey,
+        created_by: userId,
+      })
+      .select("id")
+      .single();
+    if (error) throw error;
+    const { error: dbErr } = await admin
+      .from("databases")
+      .insert({ page_id: page.id, workspace_id: workspaceId });
+    if (dbErr) throw dbErr;
+    return page.id as string;
+  };
+
+  const addProp = async (
+    databaseId: string,
+    name: string,
+    type: string,
+    config: Record<string, unknown>,
+    orderKey: string,
+  ) => {
+    const id = randomUUID();
+    const { error } = await admin.from("database_properties").insert({
+      id,
+      database_id: databaseId,
+      workspace_id: workspaceId,
+      name,
+      type,
+      config,
+      order_key: orderKey,
+    });
+    if (error) throw error;
+    return id;
+  };
+
+  const addView = async (
+    databaseId: string,
+    name: string,
+    type: string,
+    config: Record<string, unknown>,
+    orderKey: string,
+  ) => {
+    const { error } = await admin.from("views").insert({
+      database_id: databaseId,
+      workspace_id: workspaceId,
+      name,
+      type,
+      config,
+      order_key: orderKey,
+    });
+    if (error) throw error;
+  };
+
+  const addDbRow = async (
+    databaseId: string,
+    title: string,
+    properties: Record<string, unknown>,
+    orderKey: string,
+  ) => {
+    const { data: page, error } = await admin
+      .from("pages")
+      .insert({
+        workspace_id: workspaceId,
+        parent_page_id: databaseId,
+        title,
+        order_key: keyAfter(null),
+        created_by: userId,
+      })
+      .select("id")
+      .single();
+    if (error) throw error;
+    const { error: rowErr } = await admin.from("database_rows").insert({
+      page_id: page.id,
+      database_id: databaseId,
+      workspace_id: workspaceId,
+      properties,
+      order_key: orderKey,
+    });
+    if (rowErr) throw rowErr;
+    return page.id as string;
+  };
+
+  // Tasks database
+  const tasksId = await createDb("Tasks", "✅");
+  const status = await addProp(tasksId, "Status", "select", {
+    options: [
+      { id: "todo", name: "To do", color: "gray" },
+      { id: "in-progress", name: "In progress", color: "blue" },
+      { id: "done", name: "Done", color: "green" },
+    ],
+  }, "a0");
+  const due = await addProp(tasksId, "Due", "date", {}, "a1");
+  const tags = await addProp(tasksId, "Tags", "multi_select", {
+    options: [
+      { id: "home", name: "Home", color: "red" },
+      { id: "work", name: "Work", color: "purple" },
+      { id: "errand", name: "Errand", color: "yellow" },
+    ],
+  }, "a2");
+  const link = await addProp(tasksId, "Link", "url", {}, "a3");
+
+  await addView(tasksId, "Table", "table", {}, "a0");
+  await addView(tasksId, "Board", "board", { groupBy: status }, "a1");
+  await addView(tasksId, "List", "list", {}, "a2");
+
+  const today = new Date();
+  const iso = (offsetDays: number) => {
+    const d = new Date(today);
+    d.setDate(d.getDate() + offsetDays);
+    return d.toISOString().slice(0, 10);
+  };
+
+  const t1 = await addDbRow(tasksId, "Review Phase 2", {
+    [status]: "in-progress", [due]: iso(1), [tags]: ["work"],
+  }, "a0");
+  await addDbRow(tasksId, "Pay rent", {
+    [status]: "todo", [due]: iso(3), [tags]: ["home"],
+  }, "a1");
+  await addDbRow(tasksId, "Buy groceries", {
+    [status]: "todo", [due]: iso(0), [tags]: ["home", "errand"],
+  }, "a2");
+  await addDbRow(tasksId, "Set up CI secrets", {
+    [status]: "done", [tags]: ["work"], [link]: "https://github.com",
+  }, "a3");
+  await addDbRow(tasksId, "Plan the week", { [status]: "todo" }, "a4");
+
+  // Notes database with a relation to Tasks
+  const notesId = await createDb("Notes", "📝");
+  const topic = await addProp(notesId, "Topic", "select", {
+    options: [
+      { id: "ideas", name: "Ideas", color: "purple" },
+      { id: "meetings", name: "Meetings", color: "blue" },
+      { id: "journal", name: "Journal", color: "green" },
+    ],
+  }, "a0");
+  const related = await addProp(notesId, "Related tasks", "relation", {
+    databaseId: tasksId,
+  }, "a1");
+
+  await addView(notesId, "Table", "table", {}, "a0");
+  await addView(notesId, "List", "list", {}, "a1");
+
+  await addDbRow(notesId, "Workspace app ideas", {
+    [topic]: "ideas", [related]: [t1],
+  }, "a0");
+  await addDbRow(notesId, "Weekly review", { [topic]: "journal" }, "a1");
+
+  console.log("Seeded Tasks + Notes databases.");
 }
 
 main().catch((err) => {

@@ -1,12 +1,12 @@
 "use client";
 
-import { ChevronRight, FileText, Plus, Trash2 } from "lucide-react";
+import { ChevronRight, Database, FileText, Plus, Trash2 } from "lucide-react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { createDatabase } from "@/lib/db/data";
 import { archivePage, createPage, fetchPages, type PageMeta } from "@/lib/pages";
-import { workspaceChannel } from "@/lib/realtime";
-import { notifyPagesChanged } from "@/lib/realtime";
+import { notifyPagesChanged, onBroadcast, pagesTopic } from "@/lib/realtime";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 
@@ -21,17 +21,20 @@ export function PageTree({
   const [expanded, setExpanded] = useState<Set<string>>(new Set());
   const router = useRouter();
   const pathname = usePathname();
+  // Guards against overlapping refetches resolving out of order: only the
+  // most recently started fetch is allowed to set state.
+  const fetchSeq = useRef(0);
 
   const refetch = useCallback(async () => {
-    setPages(await fetchPages(workspaceId));
+    const seq = ++fetchSeq.current;
+    const fresh = await fetchPages(workspaceId);
+    if (seq === fetchSeq.current) setPages(fresh);
   }, [workspaceId]);
 
-  useEffect(() => {
-    const ch = workspaceChannel(workspaceId);
-    ch.on("broadcast", { event: "pages" }, () => void refetch());
-    // The channel object is shared for the tab's lifetime; listeners pile up
-    // only if this component remounts, which it does not in the app shell.
-  }, [workspaceId, refetch]);
+  useEffect(
+    () => onBroadcast(pagesTopic(workspaceId), "pages", () => void refetch()),
+    [workspaceId, refetch],
+  );
 
   const byParent = useMemo(() => {
     const map = new Map<string | null, PageMeta[]>();
@@ -58,6 +61,12 @@ export function PageTree({
     router.push(`/app/p/${id}`);
   };
 
+  const addDatabase = async () => {
+    const id = await createDatabase(workspaceId, null);
+    notifyPagesChanged(workspaceId);
+    router.push(`/app/p/${id}`);
+  };
+
   const remove = async (id: string) => {
     await archivePage(id);
     notifyPagesChanged(workspaceId);
@@ -73,6 +82,7 @@ export function PageTree({
       return (
         <div key={page.id}>
           <div
+            data-tree-page={page.title}
             className={cn(
               "group flex items-center gap-1 rounded-md px-1 py-1 text-sm hover:bg-accent",
               active && "bg-accent font-medium",
@@ -97,7 +107,12 @@ export function PageTree({
               className="flex min-w-0 flex-1 items-center gap-1.5"
             >
               <span className="shrink-0 text-sm">
-                {page.icon ?? <FileText className="h-3.5 w-3.5 text-muted-foreground" />}
+                {page.icon ??
+                  (page.isDatabase ? (
+                    <Database className="h-3.5 w-3.5 text-muted-foreground" />
+                  ) : (
+                    <FileText className="h-3.5 w-3.5 text-muted-foreground" />
+                  ))}
               </span>
               <span className="truncate">{page.title || "Untitled"}</span>
             </Link>
@@ -135,6 +150,15 @@ export function PageTree({
         onClick={() => void addPage(null)}
       >
         <Plus className="h-4 w-4" /> New page
+      </Button>
+      <Button
+        type="button"
+        variant="ghost"
+        size="sm"
+        className="justify-start gap-1.5 text-muted-foreground"
+        onClick={() => void addDatabase()}
+      >
+        <Database className="h-4 w-4" /> New database
       </Button>
     </div>
   );

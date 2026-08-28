@@ -58,9 +58,19 @@ completeness; the data must outlive the app (markdown/JSON export from Phase 2).
 - **Block persistence**: BlockNote document is diffed against a mirror of the
   stored rows (`src/lib/blocks/sync.ts`) — minimal upserts/deletes per save,
   LIS-based order-key stability (`src/lib/order.ts`). Debounced 500ms.
-- **Realtime**: Supabase broadcast channels only (no postgres_changes):
-  `ws-<workspaceId>` for sidebar tree refresh (self-echo on), `page-<pageId>`
-  for cross-tab block sync (self-echo off; receiving tabs refetch + replace).
+- **Realtime**: Supabase broadcast channels only (no postgres_changes), via
+  `src/lib/realtime.ts`. One shared channel per topic (a topic joins a socket
+  at most once — send and receive must share the channel), wildcard binding,
+  local handler dispatch, `self: true` echo. Topics: `ws-<workspaceId>`
+  ("pages" event, sidebar refresh), `page-<pageId>` ("blocks" event, cross-tab
+  block sync filtered by origin id).
+- **Database query layer** (`src/lib/db/`): filters/sorts/grouping are
+  declarative jsonb (view config, reused by automations) evaluated in TS over
+  rows fetched by database_id. At personal scale this beats pushing dynamic
+  jsonb predicates through PostgREST; revisit only on measured slowness.
+- **E2E**: auth once via `e2e/auth.setup.ts` (session state reused across runs
+  to dodge auth rate limits); specs self-clean; `npm run clean:e2e` removes
+  artifacts of crashed runs.
 - Playwright e2e reuses an already-running dev server on :3000 (Next 16
   allows one dev server per project).
 
@@ -99,7 +109,7 @@ completeness; the data must outlive the app (markdown/JSON export from Phase 2).
       sign-up), workspaces + membership + RLS, signup trigger, seed, CI
 - [x] **Phase 1 — Pages & blocks**: sidebar page tree, nested pages, BlockNote
       editor, fractional ordering, realtime across tabs
-- [ ] **Phase 2 — Databases**: property types, rows-as-pages, table view
+- [x] **Phase 2 — Databases**: property types, rows-as-pages, table view
       (filter/sort/group), board view, query layer, markdown/JSON export
 - [ ] **Phase 3 — Calendar**: calendar view over date properties; Google
       Calendar two-way sync

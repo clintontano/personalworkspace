@@ -8,18 +8,27 @@ export type PageMeta = {
   title: string;
   icon: string | null;
   order_key: string;
+  isDatabase?: boolean;
 };
 
 export async function fetchPages(workspaceId: string): Promise<PageMeta[]> {
   const supabase = createClient();
   const { data, error } = await supabase
     .from("pages")
-    .select("id, workspace_id, parent_page_id, title, icon, order_key")
+    .select(
+      "id, workspace_id, parent_page_id, title, icon, order_key, databases(page_id), database_rows!database_rows_page_id_fkey(database_id)",
+    )
     .eq("workspace_id", workspaceId)
     .is("archived_at", null)
     .order("order_key");
   if (error) throw error;
-  return data;
+  // Database rows are reachable through their database, not the sidebar tree.
+  return data
+    .filter((p) => p.database_rows === null)
+    .map(({ databases, database_rows: _rows, ...page }) => ({
+      ...page,
+      isDatabase: databases !== null,
+    }));
 }
 
 export async function createPage(

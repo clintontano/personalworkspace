@@ -1,10 +1,9 @@
 import { expect, test } from "@playwright/test";
-import { signIn } from "./helpers";
+import { openApp } from "./helpers";
 
 // Phase 1 happy path: create a page, write a block, survive a reload.
 test("create a page, edit blocks, content persists after reload", async ({ page }) => {
-  test.skip(!process.env.SEED_USER_EMAIL, "seed credentials not set");
-  await signIn(page);
+  await openApp(page);
 
   await page.getByRole("button", { name: "New page" }).click();
   await expect(page).toHaveURL(/\/app\/p\//);
@@ -23,14 +22,17 @@ test("create a page, edit blocks, content persists after reload", async ({ page 
   await expect(page.getByText("Hello from Playwright")).toBeVisible();
 
   // sidebar shows the renamed page
-  await expect(
-    page.locator("aside").getByText(title, { exact: true }),
-  ).toBeVisible();
+  const sidebarRow = page.locator(`[data-tree-page="${title}"]`);
+  await expect(sidebarRow).toBeVisible();
+
+  // clean up so repeated runs do not accumulate pages
+  await sidebarRow.hover();
+  await sidebarRow.getByLabel("Delete page").click();
+  await expect(sidebarRow).toHaveCount(0, { timeout: 10_000 });
 });
 
 test("seeded Welcome page renders its blocks", async ({ page }) => {
-  test.skip(!process.env.SEED_USER_EMAIL, "seed credentials not set");
-  await signIn(page);
+  await openApp(page);
   await page.locator("aside").getByText("Welcome", { exact: true }).click();
   await expect(page.getByText("Welcome to your workspace")).toBeVisible();
   await expect(page.getByText("Type / for the slash menu")).toBeVisible();

@@ -3,6 +3,8 @@
 import dynamic from "next/dynamic";
 import { useCallback, useRef, useState } from "react";
 import type { BlockRowLike } from "@/lib/blocks/sync";
+import { PropertiesPanel } from "@/components/database/properties-panel";
+import type { Property, PropertyValue } from "@/lib/db/model";
 import { renamePage } from "@/lib/pages";
 import { notifyPagesChanged } from "@/lib/realtime";
 import type { SaveState } from "./block-editor";
@@ -17,11 +19,15 @@ export function PageView({
   workspaceId,
   initialTitle,
   initialRows,
+  rowProperties,
+  rowValues,
 }: {
   pageId: string;
   workspaceId: string;
   initialTitle: string;
   initialRows: BlockRowLike[];
+  rowProperties?: Property[] | null;
+  rowValues?: Record<string, PropertyValue> | null;
 }) {
   const [title, setTitle] = useState(initialTitle);
   const [saveState, setSaveState] = useState<SaveState>("saved");
@@ -55,6 +61,13 @@ export function PageView({
         placeholder="Untitled"
         className="mb-4 w-full bg-transparent text-4xl font-bold outline-none placeholder:text-muted-foreground/40"
       />
+      {rowProperties && rowProperties.length > 0 ? (
+        <PropertiesPanel
+          pageId={pageId}
+          properties={rowProperties}
+          initialValues={rowValues ?? {}}
+        />
+      ) : null}
       <div className="-mx-[54px] flex-1">
         <BlockEditor
           pageId={pageId}

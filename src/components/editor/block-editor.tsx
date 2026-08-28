@@ -13,7 +13,7 @@ import {
   type EditorBlockLike,
 } from "@/lib/blocks/sync";
 import type { Json } from "@/lib/database.types";
-import { pageChannel } from "@/lib/realtime";
+import { broadcast, onBroadcast, pageTopic } from "@/lib/realtime";
 import { createClient } from "@/lib/supabase/client";
 
 export type SaveState = "saved" | "saving" | "error";
@@ -93,11 +93,7 @@ export function BlockEditor({
         }
         for (const u of ops.upserts) dbRows.current.set(u.id, { ...u });
         for (const id of ops.deleteIds) dbRows.current.delete(id);
-        void pageChannel(pageId).send({
-          type: "broadcast",
-          event: "blocks",
-          payload: { origin: tabClientId },
-        });
+        void broadcast(pageTopic(pageId), "blocks", { origin: tabClientId });
         onSaveStateChange?.("saved");
       } catch (err) {
         console.error("block save failed", err);
@@ -117,8 +113,7 @@ export function BlockEditor({
 
   // Remote edits from other tabs: refetch and replace the document.
   useEffect(() => {
-    const ch = pageChannel(pageId);
-    ch.on("broadcast", { event: "blocks" }, ({ payload }) => {
+    return onBroadcast(pageTopic(pageId), "blocks", (payload) => {
       if (payload.origin === tabClientId) return;
       void (async () => {
         const supabase = createClient();

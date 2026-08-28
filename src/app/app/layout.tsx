@@ -32,11 +32,18 @@ export default async function AppLayout({
   if (workspace) {
     const { data } = await supabase
       .from("pages")
-      .select("id, workspace_id, parent_page_id, title, icon, order_key")
+      .select(
+        "id, workspace_id, parent_page_id, title, icon, order_key, databases(page_id), database_rows!database_rows_page_id_fkey(database_id)",
+      )
       .eq("workspace_id", workspace.id)
       .is("archived_at", null)
       .order("order_key");
-    pages = data ?? [];
+    pages = (data ?? [])
+      .filter((p) => p.database_rows === null)
+      .map(({ databases, database_rows: _rows, ...page }) => ({
+        ...page,
+        isDatabase: databases !== null,
+      }));
   }
 
   return (
@@ -53,7 +60,14 @@ export default async function AppLayout({
             <PageTree workspaceId={workspace.id} initialPages={pages} />
           ) : null}
         </nav>
-        <div className="border-t p-4">
+        <div className="flex flex-col gap-2 border-t p-4">
+          <a
+            href="/api/export"
+            download
+            className="text-xs text-muted-foreground underline-offset-2 hover:underline"
+          >
+            Export workspace (JSON)
+          </a>
           <form action={signOut}>
             <Button type="submit" variant="outline" size="sm" className="w-full">
               Sign out

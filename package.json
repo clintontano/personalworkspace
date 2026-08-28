@@ -12,7 +12,8 @@
     "test:watch": "vitest",
     "test:e2e": "playwright test",
     "seed": "tsx scripts/seed.ts",
-    "format": "prettier --write src scripts e2e"
+    "format": "prettier --write src scripts e2e",
+    "clean:e2e": "tsx scripts/clean-e2e.ts"
   },
   "dependencies": {
     "@blocknote/core": "^0.54.0",

@@ -3,35 +3,66 @@
 import type { RealtimeChannel } from "@supabase/supabase-js";
 import { createClient } from "@/lib/supabase/client";
 
-// One shared channel per topic for the lifetime of the tab. Channels carry
-// broadcast events only (no postgres replication config needed).
-const channels = new Map<string, RealtimeChannel>();
+export const pagesTopic = (workspaceId: string) => `ws-${workspaceId}`;
+export const pageTopic = (pageId: string) => `page-${pageId}`;
 
-function channel(topic: string, self: boolean): RealtimeChannel {
-  let ch = channels.get(topic);
-  if (!ch) {
-    ch = createClient().channel(topic, { config: { broadcast: { self } } });
-    ch.subscribe();
-    channels.set(topic, ch);
+// One channel per topic, shared by senders and receivers: a topic can only be
+// joined once per socket, so send and receive must go through the same
+// channel. It subscribes once with a wildcard binding and dispatches to local
+// handlers; `self: true` lets a tab react to its own sends (payloads carry an
+// origin id where that must be filtered).
+type Handler = { event: string; fn: (payload: Record<string, unknown>) => void };
+type Hub = { ready: Promise<RealtimeChannel>; handlers: Set<Handler> };
+
+const hubs = new Map<string, Hub>();
+
+function hub(topic: string): Hub {
+  let existing = hubs.get(topic);
+  if (!existing) {
+    const handlers = new Set<Handler>();
+    const channel = createClient().channel(topic, {
+      config: { broadcast: { self: true } },
+    });
+    channel.on("broadcast", { event: "*" }, (message) => {
+      const payload = (message.payload ?? {}) as Record<string, unknown>;
+      for (const handler of handlers) {
+        if (handler.event === message.event) handler.fn(payload);
+      }
+    });
+    const ready = new Promise<RealtimeChannel>((resolve) => {
+      channel.subscribe((status) => {
+        if (status === "SUBSCRIBED") resolve(channel);
+      });
+    });
+    existing = { ready, handlers };
+    hubs.set(topic, existing);
   }
-  return ch;
+  return existing;
 }
 
-/** Workspace-wide events (sidebar page tree). Echoes to the sender so the
- * sending tab's own sidebar refreshes through the same path. */
-export function workspaceChannel(workspaceId: string) {
-  return channel(`ws-${workspaceId}`, true);
+/** Listen for a broadcast event. Returns an unsubscribe function. */
+export function onBroadcast(
+  topic: string,
+  event: string,
+  fn: (payload: Record<string, unknown>) => void,
+): () => void {
+  const h = hub(topic);
+  const handler: Handler = { event, fn };
+  h.handlers.add(handler);
+  return () => {
+    h.handlers.delete(handler);
+  };
 }
 
-/** Per-page block events. Does not echo: the sender already has the edit. */
-export function pageChannel(pageId: string) {
-  return channel(`page-${pageId}`, false);
+export async function broadcast(
+  topic: string,
+  event: string,
+  payload: Record<string, unknown> = {},
+) {
+  const channel = await hub(topic).ready;
+  await channel.send({ type: "broadcast", event, payload });
 }
 
 export function notifyPagesChanged(workspaceId: string) {
-  void workspaceChannel(workspaceId).send({
-    type: "broadcast",
-    event: "pages",
-    payload: {},
-  });
+  void broadcast(pagesTopic(workspaceId), "pages");
 }

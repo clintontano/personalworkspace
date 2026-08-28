@@ -1,11 +1,6 @@
+import { Database, FileText } from "lucide-react";
+import Link from "next/link";
 import { createClient } from "@/lib/supabase/server";
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card";
 
 export default async function AppHomePage() {
   const supabase = await createClient();
@@ -13,39 +8,51 @@ export default async function AppHomePage() {
     data: { user },
   } = await supabase.auth.getUser();
 
-  const { data: memberships } = await supabase
+  const { data: membership } = await supabase
     .from("workspace_members")
-    .select("role, created_at, workspaces(id, name)")
-    .eq("user_id", user!.id);
+    .select("workspace_id, workspaces(name)")
+    .eq("user_id", user!.id)
+    .limit(1)
+    .maybeSingle();
+
+  const { data: recent } = await supabase
+    .from("pages")
+    .select("id, title, icon, updated_at, databases(page_id), database_rows!database_rows_page_id_fkey(database_id)")
+    .eq("workspace_id", membership!.workspace_id)
+    .is("archived_at", null)
+    .order("updated_at", { ascending: false })
+    .limit(8);
 
   return (
-    <div className="flex h-full items-center justify-center p-8">
-      <Card className="w-full max-w-lg">
-        <CardHeader>
-          <CardTitle>Phase 0: Foundation</CardTitle>
-          <CardDescription>
-            Auth, workspaces, membership and RLS are wired up.
-          </CardDescription>
-        </CardHeader>
-        <CardContent className="text-sm">
-          <ul className="flex flex-col gap-2">
-            {(memberships ?? []).map((m) => (
-              <li
-                key={m.workspaces!.id}
-                className="flex items-center justify-between rounded-md border p-3"
-              >
-                <span className="font-medium">{m.workspaces!.name}</span>
-                <span className="text-muted-foreground">{m.role}</span>
-              </li>
-            ))}
-          </ul>
-          <p className="mt-4 text-muted-foreground">
-            This list is fetched through RLS: you only see workspaces you are a
-            member of. Phase 1 replaces this screen with pages and the block
-            editor.
-          </p>
-        </CardContent>
-      </Card>
+    <div className="mx-auto max-w-3xl px-8 py-16">
+      <h1 className="mb-1 text-3xl font-bold">
+        {membership?.workspaces?.name ?? "Workspace"}
+      </h1>
+      <p className="mb-8 text-sm text-muted-foreground">
+        Recently updated
+      </p>
+      <div className="flex flex-col">
+        {(recent ?? []).map((page) => (
+          <Link
+            key={page.id}
+            href={`/app/p/${page.id}`}
+            className="flex items-center gap-2 rounded-md px-2 py-2 text-sm hover:bg-muted"
+          >
+            <span className="w-5 shrink-0">
+              {page.icon ??
+                (page.databases !== null ? (
+                  <Database className="h-4 w-4 text-muted-foreground" />
+                ) : (
+                  <FileText className="h-4 w-4 text-muted-foreground" />
+                ))}
+            </span>
+            <span className="font-medium">{page.title || "Untitled"}</span>
+            {page.database_rows !== null ? (
+              <span className="text-xs text-muted-foreground">row</span>
+            ) : null}
+          </Link>
+        ))}
+      </div>
     </div>
   );
 }
