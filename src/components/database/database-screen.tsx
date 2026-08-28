@@ -26,6 +26,7 @@ import { notifyPagesChanged } from "@/lib/realtime";
 import { updateRowProperties } from "@/lib/db/data";
 import { cn } from "@/lib/utils";
 import { BoardView } from "./board-view";
+import { CalendarView } from "./calendar-view";
 import { ListView } from "./list-view";
 import { TableView } from "./table-view";
 import { ViewToolbar } from "./view-toolbar";
@@ -234,9 +235,16 @@ export function DatabaseScreen({
       ) : activeView.type === "list" ? (
         <ListView rows={visibleRows} properties={visibleProperties} />
       ) : activeView.type === "calendar" ? (
-        <p className="p-4 text-sm text-muted-foreground">
-          Calendar views arrive in Phase 3.
-        </p>
+        <CalendarView
+          rows={visibleRows}
+          properties={visibleProperties}
+          dateProperty={
+            activeView.config.dateProperty
+              ? propertiesById.get(activeView.config.dateProperty)
+              : properties.find((p) => p.type === "date")
+          }
+          onAddRow={(presets) => void onAddRow(presets)}
+        />
       ) : (
         <TableView
           rows={visibleRows}

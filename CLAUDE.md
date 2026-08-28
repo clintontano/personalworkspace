@@ -89,6 +89,19 @@ completeness; the data must outlive the app (markdown/JSON export from Phase 2).
   backlinks/rollups force a junction table. Delete paths must clean up
   dangling refs.
 
+## Google integration
+
+- OAuth is optional: without `GOOGLE_CLIENT_ID` / `GOOGLE_CLIENT_SECRET` the
+  Settings page explains the setup and the routes return 501. Redirect URI:
+  `http://localhost:3000/api/google/callback`.
+- `google_connections` holds tokens per (user, kind); RLS is owner-only.
+  Refresh tokens arrive only on first consent — re-connects keep the stored one.
+- Calendar sync (`POST /api/google/sync`) runs pull-then-push per call.
+  Planning logic is pure and unit-tested (`src/lib/google/calendar-sync.ts`);
+  the route only does I/O. Rows link to events via a reserved `_gcal` key in
+  the properties jsonb (underscore keys are ignored by the UI). Incremental
+  via syncToken, falling back to a full resync on 410.
+
 ## How to work (owner's rules)
 
 1. Keep this file current.
@@ -111,8 +124,8 @@ completeness; the data must outlive the app (markdown/JSON export from Phase 2).
       editor, fractional ordering, realtime across tabs
 - [x] **Phase 2 — Databases**: property types, rows-as-pages, table view
       (filter/sort/group), board view, query layer, markdown/JSON export
-- [ ] **Phase 3 — Calendar**: calendar view over date properties; Google
-      Calendar two-way sync
+- [x] **Phase 3 — Calendar**: calendar view over date properties; Google
+      Calendar two-way sync (needs GOOGLE_CLIENT_ID/SECRET to activate)
 - [ ] **Phase 4 — Forms & sites**: public form → database row; publish page
       tree to public slug
 - [ ] **Phase 5 — Automations**: declarative jsonb trigger/action rules, edge

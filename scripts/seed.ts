@@ -71,6 +71,7 @@ async function main() {
 
   await seedPages(user.id, memberships[0].workspace_id as string);
   await seedDatabases(user.id, memberships[0].workspace_id as string);
+  await seedEvents(user.id, memberships[0].workspace_id as string);
   console.log("Seed complete.");
 }
 
@@ -365,6 +366,132 @@ async function seedDatabases(userId: string, workspaceId: string) {
   await addDbRow(notesId, "Weekly review", { [topic]: "journal" }, "a1");
 
   console.log("Seeded Tasks + Notes databases.");
+}
+
+async function seedEvents(userId: string, workspaceId: string) {
+  const { data: existing } = await admin
+    .from("pages")
+    .select("id")
+    .eq("workspace_id", workspaceId)
+    .eq("title", "Events")
+    .maybeSingle();
+  if (existing) {
+    console.log("Events already seeded.");
+    return;
+  }
+
+  const { keyAfter } = await import("../src/lib/order");
+  const { randomUUID } = await import("node:crypto");
+
+  const { data: lastPage } = await admin
+    .from("pages")
+    .select("order_key")
+    .eq("workspace_id", workspaceId)
+    .is("parent_page_id", null)
+    .order("order_key", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+
+  const { data: page, error } = await admin
+    .from("pages")
+    .insert({
+      workspace_id: workspaceId,
+      title: "Events",
+      icon: "📅",
+      order_key: keyAfter(lastPage?.order_key ?? null),
+      created_by: userId,
+    })
+    .select("id")
+    .single();
+  if (error) throw error;
+  const eventsId = page.id as string;
+  await admin.from("databases").insert({ page_id: eventsId, workspace_id: workspaceId });
+
+  // PostgREST bulk inserts require identical keys on every record.
+  const dateId = randomUUID();
+  const kindId = randomUUID();
+  const { error: propsError } = await admin.from("database_properties").insert([
+    {
+      id: dateId,
+      database_id: eventsId,
+      workspace_id: workspaceId,
+      name: "Date",
+      type: "date",
+      config: {},
+      order_key: "a0",
+    },
+    {
+      id: kindId,
+      database_id: eventsId,
+      workspace_id: workspaceId,
+      name: "Kind",
+      type: "select",
+      config: {
+        options: [
+          { id: "appointment", name: "Appointment", color: "blue" },
+          { id: "birthday", name: "Birthday", color: "pink" },
+          { id: "trip", name: "Trip", color: "green" },
+        ],
+      },
+      order_key: "a1",
+    },
+  ]);
+  if (propsError) throw propsError;
+
+  const { error: viewsError } = await admin.from("views").insert([
+    {
+      database_id: eventsId,
+      workspace_id: workspaceId,
+      name: "Calendar",
+      type: "calendar",
+      config: { dateProperty: dateId },
+      order_key: "a0",
+    },
+    {
+      database_id: eventsId,
+      workspace_id: workspaceId,
+      name: "Table",
+      type: "table",
+      config: {},
+      order_key: "a1",
+    },
+  ]);
+  if (viewsError) throw viewsError;
+
+  const today = new Date();
+  const iso = (offset: number) => {
+    const d = new Date(today);
+    d.setDate(d.getDate() + offset);
+    return d.toISOString().slice(0, 10);
+  };
+
+  const addEvent = async (title: string, date: string, kind: string, orderKey: string) => {
+    const { data: p, error: pageErr } = await admin
+      .from("pages")
+      .insert({
+        workspace_id: workspaceId,
+        parent_page_id: eventsId,
+        title,
+        order_key: keyAfter(null),
+        created_by: userId,
+      })
+      .select("id")
+      .single();
+    if (pageErr) throw pageErr;
+    await admin.from("database_rows").insert({
+      page_id: p.id,
+      database_id: eventsId,
+      workspace_id: workspaceId,
+      properties: { [dateId]: date, [kindId]: kind },
+      order_key: orderKey,
+    });
+  };
+
+  await addEvent("Dentist", iso(2), "appointment", "a0");
+  await addEvent("Mom's birthday", iso(6), "birthday", "a1");
+  await addEvent("Weekend trip", iso(9), "trip", "a2");
+
+  console.log("Seeded Events database with calendar view.");
 }
 
 main().catch((err) => {

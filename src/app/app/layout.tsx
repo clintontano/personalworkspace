@@ -62,6 +62,12 @@ export default async function AppLayout({
         </nav>
         <div className="flex flex-col gap-2 border-t p-4">
           <a
+            href="/app/settings"
+            className="text-xs text-muted-foreground underline-offset-2 hover:underline"
+          >
+            Settings
+          </a>
+          <a
             href="/api/export"
             download
             className="text-xs text-muted-foreground underline-offset-2 hover:underline"
