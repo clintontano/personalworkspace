@@ -72,6 +72,7 @@ async function main() {
   await seedPages(user.id, memberships[0].workspace_id as string);
   await seedDatabases(user.id, memberships[0].workspace_id as string);
   await seedEvents(user.id, memberships[0].workspace_id as string);
+  await seedAutomations(user.id, memberships[0].workspace_id as string);
   console.log("Seed complete.");
 }
 
@@ -492,6 +493,57 @@ async function seedEvents(userId: string, workspaceId: string) {
   await addEvent("Weekend trip", iso(9), "trip", "a2");
 
   console.log("Seeded Events database with calendar view.");
+}
+
+async function seedAutomations(userId: string, workspaceId: string) {
+  const { count } = await admin
+    .from("automations")
+    .select("id", { count: "exact", head: true })
+    .eq("workspace_id", workspaceId);
+  if ((count ?? 0) > 0) {
+    console.log("Automations already seeded.");
+    return;
+  }
+
+  const { data: tasks } = await admin
+    .from("pages")
+    .select("id")
+    .eq("workspace_id", workspaceId)
+    .eq("title", "Tasks")
+    .single();
+  const { data: props } = await admin
+    .from("database_properties")
+    .select("id, name")
+    .eq("database_id", tasks!.id);
+  const status = props!.find((p) => p.name === "Status")!;
+
+  const { error } = await admin.from("automations").insert([
+    {
+      workspace_id: workspaceId,
+      name: "Notify when a task is done",
+      trigger: {
+        type: "row_updated",
+        databaseId: tasks!.id,
+        filter: {
+          combinator: "and",
+          conditions: [{ property: status.id, op: "eq", value: "done" }],
+        },
+      },
+      actions: [{ type: "notify", message: "Finished: {{title}}" }],
+      enabled: true,
+      created_by: userId,
+    },
+    {
+      workspace_id: workspaceId,
+      name: "Daily review reminder",
+      trigger: { type: "schedule", cron: "0 9 * * 1-5" },
+      actions: [{ type: "notify", message: "Time for your daily review" }],
+      enabled: false,
+      created_by: userId,
+    },
+  ]);
+  if (error) throw error;
+  console.log("Seeded 2 automations.");
 }
 
 main().catch((err) => {

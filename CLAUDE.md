@@ -89,6 +89,28 @@ completeness; the data must outlive the app (markdown/JSON export from Phase 2).
   backlinks/rollups force a junction table. Delete paths must clean up
   dangling refs.
 
+## Automations
+
+- Rules are declarative jsonb (`automations.trigger` / `.actions`) reusing the
+  view `FilterGroup` shape, so a richer UI can be built on the same format.
+- Row changes are queued by a trigger into `automation_events` (Postgres
+  cannot call an edge function directly). The runner drains that queue and
+  evaluates scheduled rules in the same pass.
+- The trigger sets `app.automation_run` so writes made *by* the runner do not
+  re-enqueue events — no feedback loops. `isNoopUpdate` also skips updates
+  that would change nothing.
+- **Deviation from the original plan, deliberate**: the rule engine runs in
+  the Next.js route `POST /api/automations/run`, not inside the edge function.
+  The engine shares `src/lib/db/filters` with the views; duplicating it into a
+  Deno function would mean two implementations of the same semantics. The
+  edge function (`supabase/functions/automations`) is the *scheduled trigger*
+  that invokes the route. pg_cron → edge function → route.
+- Scheduling is not active until the app is deployed (pg_cron cannot reach a
+  dev machine). `scripts/pg_cron_setup.sql` documents the one-time setup; the
+  Automations page has "Run now" for local use.
+- Cron matching is hand-rolled (`src/lib/automations/schedule.ts`, 5-field,
+  unit-tested) rather than adding a dependency.
+
 ## Public surfaces (forms and sites)
 
 - **anon has no table policies at all.** Every public read/write goes through
@@ -142,8 +164,8 @@ completeness; the data must outlive the app (markdown/JSON export from Phase 2).
       Calendar two-way sync (needs GOOGLE_CLIENT_ID/SECRET to activate)
 - [x] **Phase 4 — Forms & sites**: public form → database row; publish page
       tree to public slug
-- [ ] **Phase 5 — Automations**: declarative jsonb trigger/action rules, edge
-      function evaluation, pg_cron scheduling
+- [x] **Phase 5 — Automations**: declarative jsonb trigger/action rules, edge
+      function trigger, pg_cron scheduling (see note below)
 - [ ] **Phase 6 — MCP server**: search, read/create page, append blocks, query
       database, create/update rows. stdio first.
 - [ ] **Phase 7 — Mail**: Gmail OAuth inbox, thread → task row

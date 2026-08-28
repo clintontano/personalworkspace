@@ -39,6 +39,133 @@ export type Database = {
   }
   public: {
     Tables: {
+      automation_events: {
+        Row: {
+          created_at: string
+          database_id: string
+          id: number
+          kind: string
+          page_id: string
+          processed_at: string | null
+          workspace_id: string
+        }
+        Insert: {
+          created_at?: string
+          database_id: string
+          id?: number
+          kind: string
+          page_id: string
+          processed_at?: string | null
+          workspace_id: string
+        }
+        Update: {
+          created_at?: string
+          database_id?: string
+          id?: number
+          kind?: string
+          page_id?: string
+          processed_at?: string | null
+          workspace_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "automation_events_workspace_id_fkey"
+            columns: ["workspace_id"]
+            isOneToOne: false
+            referencedRelation: "workspaces"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      automation_runs: {
+        Row: {
+          automation_id: string
+          created_at: string
+          detail: Json
+          id: string
+          status: string
+          workspace_id: string
+        }
+        Insert: {
+          automation_id: string
+          created_at?: string
+          detail?: Json
+          id?: string
+          status: string
+          workspace_id: string
+        }
+        Update: {
+          automation_id?: string
+          created_at?: string
+          detail?: Json
+          id?: string
+          status?: string
+          workspace_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "automation_runs_automation_id_fkey"
+            columns: ["automation_id"]
+            isOneToOne: false
+            referencedRelation: "automations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "automation_runs_workspace_id_fkey"
+            columns: ["workspace_id"]
+            isOneToOne: false
+            referencedRelation: "workspaces"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      automations: {
+        Row: {
+          actions: Json
+          created_at: string
+          created_by: string
+          enabled: boolean
+          id: string
+          last_run_at: string | null
+          name: string
+          trigger: Json
+          updated_at: string
+          workspace_id: string
+        }
+        Insert: {
+          actions?: Json
+          created_at?: string
+          created_by?: string
+          enabled?: boolean
+          id?: string
+          last_run_at?: string | null
+          name?: string
+          trigger?: Json
+          updated_at?: string
+          workspace_id: string
+        }
+        Update: {
+          actions?: Json
+          created_at?: string
+          created_by?: string
+          enabled?: boolean
+          id?: string
+          last_run_at?: string | null
+          name?: string
+          trigger?: Json
+          updated_at?: string
+          workspace_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "automations_workspace_id_fkey"
+            columns: ["workspace_id"]
+            isOneToOne: false
+            referencedRelation: "workspaces"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       blocks: {
         Row: {
           content: Json
@@ -385,6 +512,48 @@ export type Database = {
         Relationships: [
           {
             foreignKeyName: "google_connections_workspace_id_fkey"
+            columns: ["workspace_id"]
+            isOneToOne: false
+            referencedRelation: "workspaces"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      notifications: {
+        Row: {
+          created_at: string
+          id: string
+          message: string
+          page_id: string | null
+          read_at: string | null
+          workspace_id: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          message: string
+          page_id?: string | null
+          read_at?: string | null
+          workspace_id: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          message?: string
+          page_id?: string | null
+          read_at?: string | null
+          workspace_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "notifications_page_id_fkey"
+            columns: ["page_id"]
+            isOneToOne: false
+            referencedRelation: "pages"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "notifications_workspace_id_fkey"
             columns: ["workspace_id"]
             isOneToOne: false
             referencedRelation: "workspaces"
