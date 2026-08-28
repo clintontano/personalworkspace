@@ -1,5 +1,6 @@
 import { redirect } from "next/navigation";
 import { PageTree } from "@/components/sidebar/page-tree";
+import { ThemeToggle } from "@/components/theme-toggle";
 import { Button } from "@/components/ui/button";
 import type { PageMeta } from "@/lib/pages";
 import { createClient } from "@/lib/supabase/server";
@@ -61,6 +62,7 @@ export default async function AppLayout({
           ) : null}
         </nav>
         <div className="flex flex-col gap-2 border-t p-4">
+          <ThemeToggle />
           <a
             href="/app/mail"
             className="text-xs text-muted-foreground underline-offset-2 hover:underline"

@@ -93,7 +93,7 @@ export function FormsMenu({
           Forms
         </Button>
       </PopoverTrigger>
-      <PopoverContent align="end" className="w-96">
+      <PopoverContent align="end" className="max-h-[70vh] w-96 overflow-y-auto">
         <div className="flex flex-col gap-3 text-sm">
           <div>
             <p className="font-medium">Public forms</p>

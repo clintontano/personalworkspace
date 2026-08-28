@@ -6,6 +6,7 @@ import "@blocknote/shadcn/style.css";
 import { useCreateBlockNote } from "@blocknote/react";
 import { BlockNoteView } from "@blocknote/shadcn";
 import { useEffect, useMemo, useRef } from "react";
+import { useTheme } from "@/components/theme-provider";
 import {
   diffBlocks,
   rowsToDocument,
@@ -44,6 +45,8 @@ export function BlockEditor({
     dirty: boolean;
   }>({ timer: null, saving: false, dirty: false });
   const saveRef = useRef<() => Promise<void>>(async () => {});
+
+  const { resolved: theme } = useTheme();
 
   const initialContent = useMemo(() => {
     const doc = rowsToDocument(initialRows);
@@ -141,5 +144,5 @@ export function BlockEditor({
     };
   }, []);
 
-  return <BlockNoteView editor={editor} theme="light" onChange={scheduleSave} />;
+  return <BlockNoteView editor={editor} theme={theme} onChange={scheduleSave} />;
 }

@@ -114,7 +114,7 @@ function TextCell({
       }}
       className={cn(
         "w-full bg-transparent px-2 py-1 text-sm outline-none",
-        isUrl && "text-blue-600 underline-offset-2 focus:no-underline",
+        isUrl && "text-blue-600 underline-offset-2 focus:no-underline dark:text-blue-400",
         align === "right" && "text-right",
         className,
       )}

@@ -17,10 +17,11 @@ test("marking a task done fires the automation", async ({ page }) => {
   await page.goto("/app/automations");
   await expect(page.getByTestId("automation-card").first()).toBeVisible();
   await page.getByTestId("run-automations").click();
-  await expect(page.getByTestId("run-status")).toContainText(/rule\(s\) fired/, {
-    timeout: 30_000,
-  });
-  await expect(page.getByTestId("run-status")).not.toContainText("0 rule(s) fired");
+  // at least one rule fired (anchored so "10 rule(s)" is not read as "0 rule(s)")
+  await expect(page.getByTestId("run-status")).toContainText(
+    /(?:^|\s)[1-9]\d* rule\(s\) fired/,
+    { timeout: 30_000 },
+  );
 
   // reset the task for the next run
   await page.goto("/app");

@@ -19,7 +19,7 @@ function renderInline(content: unknown, keyPrefix = ""): React.ReactNode[] {
           key={key}
           href={item.href}
           rel="noopener noreferrer nofollow"
-          className="text-blue-600 underline underline-offset-2"
+          className="text-blue-600 underline underline-offset-2 dark:text-blue-400"
         >
           {renderInline(item.content, `${key}-`)}
         </a>

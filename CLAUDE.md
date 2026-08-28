@@ -145,6 +145,23 @@ completeness; the data must outlive the app (markdown/JSON export from Phase 2).
 - Cron matching is hand-rolled (`src/lib/automations/schedule.ts`, 5-field,
   unit-tested) rather than adding a dependency.
 
+## Theming
+
+- Light / dark / system, hand-rolled in `src/lib/theme.ts` +
+  `components/theme-provider.tsx` — no `next-themes` dependency.
+- The preference is a `dark` class on `<html>` (matching globals.css) plus
+  `color-scheme`, applied by an inline `<head>` script before first paint so
+  there is no flash of the wrong theme.
+- The provider reads localStorage and `matchMedia` through
+  `useSyncExternalStore`, not effects: React Compiler lint forbids
+  synchronous setState in effects, and these genuinely are external stores.
+  A module-level `sessionPreference` keeps the toggle working when storage is
+  blocked (private windows).
+- BlockNote receives the resolved theme; select-option colours carry explicit
+  `dark:` variants (light tints are unreadable on dark surfaces).
+- Public pages (forms, published sites) inherit the same script, so they
+  follow the visitor's OS setting.
+
 ## Public surfaces (forms and sites)
 
 - **anon has no table policies at all.** Every public read/write goes through

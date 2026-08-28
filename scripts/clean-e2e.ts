@@ -16,18 +16,41 @@ const admin = createClient(
 );
 
 async function main() {
+  let removed = 0;
+
   const { data: junk, error } = await admin
     .from("pages")
     .select("id, title")
-    .or("title.like.E2E %,title.like.Task 17%");
+    .or("title.like.E2E %,title.like.Task 17%,title.like.Form row %,title.like.MCP smoke%");
   if (error) throw error;
 
   for (const page of junk ?? []) {
     const { error: delError } = await admin.from("pages").delete().eq("id", page.id);
     if (delError) throw delError;
-    console.log(`removed: ${page.title}`);
+    console.log(`removed page: ${page.title}`);
+    removed++;
   }
-  console.log(`Cleaned ${junk?.length ?? 0} e2e artifact(s).`);
+
+  // Forms and sites the specs create through the UI. Both use generated
+  // slugs, so a crashed run leaves them behind.
+  const { data: forms } = await admin
+    .from("forms")
+    .select("id, title")
+    .like("title", "% form");
+  for (const form of forms ?? []) {
+    await admin.from("forms").delete().eq("id", form.id);
+    console.log(`removed form: ${form.title}`);
+    removed++;
+  }
+
+  const { data: sites } = await admin.from("sites").select("id, slug");
+  for (const site of sites ?? []) {
+    await admin.from("sites").delete().eq("id", site.id);
+    console.log(`removed site: ${site.slug}`);
+    removed++;
+  }
+
+  console.log(`Cleaned ${removed} e2e artifact(s).`);
 }
 
 main().catch((err) => {
