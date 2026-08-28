@@ -62,6 +62,12 @@ export default async function AppLayout({
         </nav>
         <div className="flex flex-col gap-2 border-t p-4">
           <a
+            href="/app/mail"
+            className="text-xs text-muted-foreground underline-offset-2 hover:underline"
+          >
+            Mail
+          </a>
+          <a
             href="/app/automations"
             className="text-xs text-muted-foreground underline-offset-2 hover:underline"
           >

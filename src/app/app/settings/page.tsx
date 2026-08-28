@@ -8,12 +8,12 @@ export default async function SettingsPage() {
     data: { user },
   } = await supabase.auth.getUser();
 
-  const { data: connection } = await supabase
+  const { data: connections } = await supabase
     .from("google_connections")
     .select("id, email, kind, config, updated_at")
-    .eq("user_id", user!.id)
-    .eq("kind", "calendar")
-    .maybeSingle();
+    .eq("user_id", user!.id);
+  const connection = (connections ?? []).find((c) => c.kind === "calendar") ?? null;
+  const gmail = (connections ?? []).find((c) => c.kind === "gmail") ?? null;
 
   const { data: membership } = await supabase
     .from("workspace_members")
@@ -73,6 +73,32 @@ export default async function SettingsPage() {
             currentDatePropertyId={config.datePropertyId ?? null}
             lastSyncAt={config.lastSyncAt ?? null}
           />
+        )}
+      </section>
+
+      <section className="mt-4 rounded-lg border p-4">
+        <h2 className="mb-1 font-semibold">Gmail</h2>
+        {!googleConfigured() ? (
+          <p className="text-sm text-muted-foreground">
+            Configure Google OAuth above to enable the Gmail inbox.
+          </p>
+        ) : gmail ? (
+          <p className="text-sm text-muted-foreground">
+            Connected as <span className="font-medium text-foreground">{gmail.email}</span> ·{" "}
+            <a href="/app/mail" className="underline underline-offset-2">Open inbox</a>
+          </p>
+        ) : (
+          <div className="text-sm">
+            <p className="mb-3 text-muted-foreground">
+              Read-only inbox access, so threads can be turned into rows.
+            </p>
+            <a
+              href="/api/google/auth?kind=gmail"
+              className="inline-flex h-8 items-center rounded-md bg-primary px-3 text-sm font-medium text-primary-foreground"
+            >
+              Connect Gmail
+            </a>
+          </div>
         )}
       </section>
     </div>

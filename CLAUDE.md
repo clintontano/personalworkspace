@@ -90,6 +90,21 @@ completeness; the data must outlive the app (markdown/JSON export from Phase 2).
   backlinks/rollups force a junction table. Delete paths must clean up
   dangling refs.
 
+## Mail
+
+- Gmail is read-only (`gmail.readonly`) and optional: without OAuth
+  credentials the Mail page states the setup instead of erroring.
+- Message parsing is pure and unit-tested (`src/lib/gmail/parse.ts`): header
+  lookup, base64url bodies, nested MIME parts, text/plain preferred over
+  stripped HTML, thread summarization.
+- The inbox is fetched **server-side** in the page (`lib/gmail/inbox.ts`,
+  shared with the refresh route) — no client effect, one round trip. React
+  Compiler lint forbids synchronous setState in effects, and server fetching
+  is the better answer anyway.
+- Thread → row reuses `lib/mcp/api.ts` `createRow`, so property coercion is
+  identical to the MCP path; the row body is the thread as markdown with a
+  Gmail deep link.
+
 ## MCP server
 
 - `mcp/server.mts` (stdio). See `mcp/README.md` for registering it with Claude
@@ -187,4 +202,4 @@ completeness; the data must outlive the app (markdown/JSON export from Phase 2).
       function trigger, pg_cron scheduling (see note below)
 - [x] **Phase 6 — MCP server**: search, read/create page, append blocks, query
       database, create/update rows (local stdio)
-- [ ] **Phase 7 — Mail**: Gmail OAuth inbox, thread → task row
+- [x] **Phase 7 — Mail**: Gmail OAuth inbox, thread → task row
