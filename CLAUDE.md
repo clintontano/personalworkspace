@@ -55,6 +55,14 @@ completeness; the data must outlive the app (markdown/JSON export from Phase 2).
 - Supabase clients live in `src/lib/supabase/` (browser/server/middleware
   variants), typed with generated `Database` types.
 - No state-management library until something actually hurts.
+- **Block persistence**: BlockNote document is diffed against a mirror of the
+  stored rows (`src/lib/blocks/sync.ts`) — minimal upserts/deletes per save,
+  LIS-based order-key stability (`src/lib/order.ts`). Debounced 500ms.
+- **Realtime**: Supabase broadcast channels only (no postgres_changes):
+  `ws-<workspaceId>` for sidebar tree refresh (self-echo on), `page-<pageId>`
+  for cross-tab block sync (self-echo off; receiving tabs refetch + replace).
+- Playwright e2e reuses an already-running dev server on :3000 (Next 16
+  allows one dev server per project).
 
 ## Data model decisions (log)
 
@@ -89,8 +97,8 @@ completeness; the data must outlive the app (markdown/JSON export from Phase 2).
 
 - [x] **Phase 0 — Foundation**: scaffold, email+password sign-in (no public
       sign-up), workspaces + membership + RLS, signup trigger, seed, CI
-- [ ] **Phase 1 — Pages & blocks**: sidebar page tree, nested pages, BlockNote
-      editor, fractional ordering, realtime across tabs. The core; take time.
+- [x] **Phase 1 — Pages & blocks**: sidebar page tree, nested pages, BlockNote
+      editor, fractional ordering, realtime across tabs
 - [ ] **Phase 2 — Databases**: property types, rows-as-pages, table view
       (filter/sort/group), board view, query layer, markdown/JSON export
 - [ ] **Phase 3 — Calendar**: calendar view over date properties; Google

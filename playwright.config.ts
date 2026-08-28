@@ -3,7 +3,7 @@ import { config } from "dotenv";
 
 config({ path: ".env.local" });
 
-const PORT = 3111;
+const PORT = 3000;
 
 export default defineConfig({
   testDir: "e2e",

@@ -1,6 +1,8 @@
 import { redirect } from "next/navigation";
-import { createClient } from "@/lib/supabase/server";
+import { PageTree } from "@/components/sidebar/page-tree";
 import { Button } from "@/components/ui/button";
+import type { PageMeta } from "@/lib/pages";
+import { createClient } from "@/lib/supabase/server";
 import { signOut } from "./actions";
 
 export default async function AppLayout({
@@ -26,6 +28,17 @@ export default async function AppLayout({
 
   const workspace = membership?.workspaces;
 
+  let pages: PageMeta[] = [];
+  if (workspace) {
+    const { data } = await supabase
+      .from("pages")
+      .select("id, workspace_id, parent_page_id, title, icon, order_key")
+      .eq("workspace_id", workspace.id)
+      .is("archived_at", null)
+      .order("order_key");
+    pages = data ?? [];
+  }
+
   return (
     <div className="flex h-screen">
       <aside className="flex w-64 shrink-0 flex-col border-r bg-muted/30">
@@ -35,10 +48,10 @@ export default async function AppLayout({
           </p>
           <p className="truncate text-xs text-muted-foreground">{user.email}</p>
         </div>
-        <nav className="flex-1 overflow-y-auto p-4">
-          <p className="text-sm text-muted-foreground">
-            Pages will appear here in Phase 1.
-          </p>
+        <nav className="flex-1 overflow-y-auto p-2">
+          {workspace ? (
+            <PageTree workspaceId={workspace.id} initialPages={pages} />
+          ) : null}
         </nav>
         <div className="border-t p-4">
           <form action={signOut}>
