@@ -141,7 +141,8 @@ completeness; the data must outlive the app (markdown/JSON export from Phase 2).
   that invokes the route. pg_cron → edge function → route.
 - Scheduling is not active until the app is deployed (pg_cron cannot reach a
   dev machine). `scripts/pg_cron_setup.sql` documents the one-time setup; the
-  Automations page has "Run now" for local use.
+  Automations page has "Run now" for local use. Deploy the function with
+  `--use-api` so no Docker is needed on this machine.
 - Cron matching is hand-rolled (`src/lib/automations/schedule.ts`, 5-field,
   unit-tested) rather than adding a dependency.
 

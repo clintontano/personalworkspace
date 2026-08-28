@@ -1,6 +1,7 @@
 // Scheduled automation runner.
 //
-// Deploy:  supabase functions deploy automations --no-verify-jwt
+// Deploy:  supabase functions deploy automations --no-verify-jwt --use-api
+//          (--use-api bundles server-side; no Docker required)
 // Secrets: supabase secrets set APP_URL=https://<your-app> \
 //                               AUTOMATION_RUN_SECRET=<same as .env.local>
 //

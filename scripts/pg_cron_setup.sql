@@ -4,7 +4,8 @@
 -- Not a migration: it needs the deployed function URL and the service role
 -- key, which are environment-specific.
 --
---   1. supabase functions deploy automations --no-verify-jwt
+--   1. supabase functions deploy automations --no-verify-jwt --use-api
+--      (--use-api bundles server-side, so no Docker is needed)
 --   2. supabase secrets set APP_URL=https://<your-app> AUTOMATION_RUN_SECRET=<secret>
 --   3. run this in the SQL editor, replacing <project-ref> and <service-role-key>
 
