@@ -1,36 +1,81 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# personalworkspace
 
-## Getting Started
+A personal Notion replacement: pages and nested blocks, databases with
+table/board/list/calendar views, public forms and published sites,
+declarative automations, a Gmail inbox, two-way Google Calendar sync, and an
+MCP server so Claude can read and write the workspace directly.
 
-First, run the development server:
+Single user by design — there is no public sign-up.
+
+## Stack
+
+Next.js (App Router) · TypeScript · Tailwind v4 · shadcn/ui · BlockNote ·
+Supabase (Postgres, Auth, Storage, Realtime, Edge Functions).
+
+Row Level Security is on every table; the public form/site surface goes
+through `security definer` RPCs rather than a privileged key.
+
+## Local setup
+
+Requires **Node 22+** (`.nvmrc`) — supabase-js needs native WebSocket.
 
 ```bash
+npm install
+cp .env.example .env.local   # then fill it in
+npm run seed                 # creates the user + workspace (idempotent)
 npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+## Commands
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+| Command | What it does |
+| --- | --- |
+| `npm run dev` | Dev server on :3000 |
+| `npm run typecheck` / `lint` / `format` | Static checks |
+| `npm run test` | Vitest unit tests |
+| `npm run test:e2e` | Playwright (reuses a dev server on :3000) |
+| `npm run seed` | Create/verify the seed user and workspace |
+| `npm run mcp:check` | Drive the MCP server over stdio end to end |
+| `npm run clean:e2e` | Remove artifacts of crashed e2e runs |
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+## Deploying to Vercel
 
-## Learn More
+1. Import the repository. Framework preset **Next.js**; no build overrides
+   needed. `engines.node` pins Node 22.
+2. Add the environment variables from `.env.example` in **Project Settings →
+   Environment Variables**. At minimum:
+   `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_ANON_KEY`,
+   `SUPABASE_SERVICE_ROLE_KEY`, `SEED_USER_EMAIL`, `SEED_USER_PASSWORD`.
+   Add `GOOGLE_CLIENT_ID` / `GOOGLE_CLIENT_SECRET` for Calendar and Gmail, and
+   `AUTOMATION_RUN_SECRET` for scheduled automations.
 
-To learn more about Next.js, take a look at the following resources:
+   The build succeeds without any of these; the app just cannot reach
+   Supabase until they are set.
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+3. **After the first deploy, add the deployed callback URL to the Google
+   OAuth client**, or connecting Google fails with `redirect_uri_mismatch`.
+   The app derives the redirect from the request origin, so it needs:
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+   ```
+   https://<your-domain>/api/google/callback
+   ```
 
-## Deploy on Vercel
+   Add it alongside the existing localhost entry in Google Cloud Console →
+   Google Auth Platform → Clients. Google notes changes can take a few
+   minutes to apply.
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+4. Scheduled automations need the app to be reachable from Supabase, which is
+   why they only work once deployed. See `scripts/pg_cron_setup.sql`; deploy
+   the edge function with `--use-api` so no Docker is required.
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+## MCP server
+
+`mcp/server.mts` exposes the workspace to Claude over stdio. It signs in as
+the workspace user and runs entirely under that user's RLS — it never touches
+the service-role key. A project-scoped `.mcp.json` is committed, so opening
+this repo in Claude Code offers the server for approval. See
+[`mcp/README.md`](mcp/README.md) for the desktop-app setup and the tool list.
+
+## Notes
+
+`CLAUDE.md` holds the working conventions and the data-model decision log.
