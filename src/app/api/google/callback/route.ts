@@ -1,5 +1,5 @@
 import { NextResponse, type NextRequest } from "next/server";
-import { emailFromIdToken, exchangeCode } from "@/lib/google/oauth";
+import { emailFromIdToken, exchangeCode, hasRequiredScope } from "@/lib/google/oauth";
 import { createClient } from "@/lib/supabase/server";
 
 export async function GET(request: NextRequest) {
@@ -16,6 +16,14 @@ export async function GET(request: NextRequest) {
   }
 
   const tokens = await exchangeCode(request.nextUrl.origin, code);
+
+  // A token without the scope we asked for is useless; storing it would turn
+  // a clear consent mistake into an opaque 403 at first use.
+  if (!hasRequiredScope(tokens.scope, kind)) {
+    return NextResponse.redirect(
+      new URL(`/app/settings?google=missing_scope&kind=${kind}`, request.url),
+    );
+  }
 
   const { data: membership } = await supabase
     .from("workspace_members")

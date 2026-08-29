@@ -3,8 +3,10 @@
 const TOKEN_URL = "https://oauth2.googleapis.com/token";
 const AUTH_URL = "https://accounts.google.com/o/oauth2/v2/auth";
 
+// Least privilege: we only read and write events, never calendar settings or
+// ACLs, so calendar.events rather than the full calendar scope.
 export const SCOPES = {
-  calendar: "https://www.googleapis.com/auth/calendar",
+  calendar: "https://www.googleapis.com/auth/calendar.events",
   gmail: "https://www.googleapis.com/auth/gmail.readonly",
 } as const;
 
@@ -24,6 +26,9 @@ export function buildAuthUrl(origin: string, kind: keyof typeof SCOPES): string 
     scope: `openid email ${SCOPES[kind]}`,
     access_type: "offline",
     prompt: "consent",
+    // Carry previously granted scopes forward, so connecting Gmail does not
+    // drop an existing Calendar grant (and vice versa).
+    include_granted_scopes: "true",
     state: kind,
   });
   return `${AUTH_URL}?${params}`;
@@ -34,7 +39,23 @@ type TokenResponse = {
   refresh_token?: string;
   expires_in: number;
   id_token?: string;
+  /** Space-separated scopes actually granted, which can be narrower than
+   * those requested if the user leaves a permission unticked. */
+  scope?: string;
 };
+
+/**
+ * Did the user actually grant what we asked for? Google returns 200 with a
+ * sign-in-only token when a permission checkbox is left unticked, and the
+ * failure would otherwise surface much later as an opaque 403 from the API.
+ */
+export function hasRequiredScope(
+  granted: string | undefined,
+  kind: keyof typeof SCOPES,
+): boolean {
+  const scopes = (granted ?? "").split(/\s+/).filter(Boolean);
+  return scopes.includes(SCOPES[kind]);
+}
 
 export async function exchangeCode(origin: string, code: string): Promise<TokenResponse> {
   const response = await fetch(TOKEN_URL, {

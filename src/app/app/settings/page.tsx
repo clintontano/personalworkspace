@@ -2,7 +2,12 @@ import { createClient } from "@/lib/supabase/server";
 import { googleConfigured } from "@/lib/google/oauth";
 import { CalendarSyncSettings } from "./calendar-sync-settings";
 
-export default async function SettingsPage() {
+export default async function SettingsPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ google?: string; kind?: string }>;
+}) {
+  const params = await searchParams;
   const supabase = await createClient();
   const {
     data: { user },
@@ -44,9 +49,28 @@ export default async function SettingsPage() {
     lastSyncAt?: string;
   };
 
+  const missingScopeKind =
+    params.google === "missing_scope" ? (params.kind ?? "the service") : null;
+
   return (
     <div className="mx-auto max-w-2xl px-8 py-12">
       <h1 className="mb-8 text-2xl font-bold">Settings</h1>
+
+      {missingScopeKind ? (
+        <div
+          role="alert"
+          data-testid="missing-scope"
+          className="mb-4 rounded-lg border border-destructive/40 bg-destructive/10 p-4 text-sm"
+        >
+          <p className="font-medium">Permission not granted</p>
+          <p className="mt-1 text-muted-foreground">
+            Google signed you in but did not grant {missingScopeKind} access, so
+            nothing was saved. Connect again and make sure the{" "}
+            {missingScopeKind === "calendar" ? "calendar" : "Gmail"} permission
+            checkbox is ticked on the consent screen before continuing.
+          </p>
+        </div>
+      ) : null}
 
       <section className="rounded-lg border p-4">
         <h2 className="mb-1 font-semibold">Google Calendar</h2>
