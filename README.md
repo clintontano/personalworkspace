@@ -42,15 +42,21 @@ npm run dev
 
 1. Import the repository. Framework preset **Next.js**; no build overrides
    needed. `engines.node` pins Node 22.
-2. Add the environment variables from `.env.example` in **Project Settings →
-   Environment Variables**. At minimum:
-   `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_ANON_KEY`,
-   `SUPABASE_SERVICE_ROLE_KEY`, `SEED_USER_EMAIL`, `SEED_USER_PASSWORD`.
-   Add `GOOGLE_CLIENT_ID` / `GOOGLE_CLIENT_SECRET` for Calendar and Gmail, and
-   `AUTOMATION_RUN_SECRET` for scheduled automations.
+2. Add environment variables in **Project Settings → Environment Variables**.
+   Only what the running app actually reads — `SEED_USER_*` and `MCP_USER_*`
+   belong to the seed script, the e2e suite and the local MCP server, so they
+   should **not** be set here:
 
-   The build succeeds without any of these; the app just cannot reach
-   Supabase until they are set.
+   | Variable | Needed for |
+   | --- | --- |
+   | `NEXT_PUBLIC_SUPABASE_URL` | required — the app cannot start work without it |
+   | `NEXT_PUBLIC_SUPABASE_ANON_KEY` | required (public by design; RLS is the boundary) |
+   | `GOOGLE_CLIENT_ID` / `GOOGLE_CLIENT_SECRET` | Calendar sync and the Gmail inbox |
+   | `AUTOMATION_RUN_SECRET` | scheduled automations only |
+   | `SUPABASE_SERVICE_ROLE_KEY` | scheduled automations only — the scheduler path runs across every workspace. Omit it and "Run now" still works under your own session |
+
+   The build succeeds with none of these set; a green build does not mean a
+   working app.
 
 3. **After the first deploy, add the deployed callback URL to the Google
    OAuth client**, or connecting Google fails with `redirect_uri_mismatch`.
