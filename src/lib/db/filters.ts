@@ -2,6 +2,7 @@
  * Declarative filter model (stored as jsonb in views.config and reused by
  * automations). Evaluated in TS over fetched rows.
  */
+import { datePart } from "./date-value";
 import {
   isEmptyValue,
   valueOf,
@@ -42,8 +43,8 @@ export function isGroup(c: FilterCondition | FilterGroup): c is FilterGroup {
 export const EMPTY_FILTER: FilterGroup = { combinator: "and", conditions: [] };
 
 function dateOnly(value: unknown): string | null {
-  if (typeof value !== "string" || value === "") return null;
-  return value.slice(0, 10);
+  // Day-level semantics: "is on 29th" matches any time that day.
+  return datePart(value);
 }
 
 export function evaluateCondition(

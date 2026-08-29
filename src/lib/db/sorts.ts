@@ -1,3 +1,4 @@
+import { toInstant } from "./date-value";
 import { isEmptyValue, valueOf, type Property, type Row } from "./model";
 
 export type Sort = { property: string; direction: "asc" | "desc" };
@@ -9,7 +10,9 @@ function rank(value: unknown, type: string, property: Property | undefined): str
     case "checkbox":
       return value === true ? 1 : 0;
     case "date":
-      return typeof value === "string" ? value.slice(0, 10) : "￿";
+      // instants, so a timed value orders correctly against an all-day one
+      // and across UTC offsets
+      return toInstant(value) ?? Number.POSITIVE_INFINITY;
     case "select": {
       // Sort selects by their option order, matching Notion behaviour.
       const index = property?.config.options?.findIndex((o) => o.id === value) ?? -1;

@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import type { Json } from "@/lib/database.types";
 import {
   eventBody,
+  eventDuration,
   planPull,
   planPush,
   type GcalEvent,
@@ -147,7 +148,6 @@ export async function POST(request: Request) {
       archived: pages.archived_at !== null,
     };
   });
-  const rowsByPageId = new Map(rows.map((r) => [r.pageId, r]));
 
   const workspaceId = connection.workspace_id;
   const pulled = new Set<string>();
@@ -228,13 +228,20 @@ export async function POST(request: Request) {
         .eq("page_id", action.pageId);
       pushed++;
     } else {
-      const row = rowsByPageId.get(action.pageId);
-      const dateChanged = row ? row.date !== null : true;
+      // Fetch first so a timed event keeps its own length instead of being
+      // reset to the default hour.
+      let durationMs: number | null = null;
+      if (action.date && action.date.includes("T")) {
+        const current = await gcal(
+          `/calendars/${encodeURIComponent(config.calendarId)}/events/${action.eventId}`,
+        );
+        if (current.ok) durationMs = eventDuration((await current.json()) as GcalEvent);
+      }
       const response = await gcal(
         `/calendars/${encodeURIComponent(config.calendarId)}/events/${action.eventId}`,
         {
           method: "PATCH",
-          body: JSON.stringify(eventBody(action.title, dateChanged ? action.date : null)),
+          body: JSON.stringify(eventBody(action.title, action.date, durationMs)),
         },
       );
       if (response.ok) pushed++;

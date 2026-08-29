@@ -12,7 +12,11 @@ MCP_USER_EMAIL=you@example.com      # falls back to SEED_USER_EMAIL
 MCP_USER_PASSWORD=...               # falls back to SEED_USER_PASSWORD
 ```
 
-Register it with Claude Code:
+The repo ships a project-scoped `.mcp.json`, so opening this folder in Claude
+Code offers the server automatically — approve it when prompted, then check
+with `/mcp`.
+
+To register it manually instead (CLI):
 
 ```bash
 claude mcp add workspace -- npx tsx /Users/us/Documents/personalworkspace/mcp/server.mts
@@ -30,6 +34,8 @@ Or in Claude Desktop's config:
   }
 }
 ```
+
+Requires Node 22+ (`.nvmrc`); supabase-js needs native WebSocket support.
 
 Verify it end to end (drives the real server, cleans up after itself):
 

@@ -1,0 +1,9 @@
+{
+  "mcpServers": {
+    "workspace": {
+      "command": "npx",
+      "args": ["tsx", "mcp/server.mts"],
+      "env": {}
+    }
+  }
+}

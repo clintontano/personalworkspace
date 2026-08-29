@@ -6,6 +6,7 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { BlockRowLike } from "@/lib/blocks/sync";
 import type { Database, Json } from "@/lib/database.types";
+import { normalizeDateValue } from "@/lib/db/date-value";
 import { evaluateFilter, type FilterGroup } from "@/lib/db/filters";
 import type { Property, PropertyConfig, PropertyType, PropertyValue, Row } from "@/lib/db/model";
 import { sortRows, type Sort } from "@/lib/db/sorts";
@@ -299,7 +300,8 @@ export function coerceValue(property: Property, value: unknown): PropertyValue {
     case "checkbox":
       return value === true || value === "true";
     case "date":
-      return typeof value === "string" && value !== "" ? value.slice(0, 10) : null;
+      // preserves a time when the agent supplies one
+      return normalizeDateValue(value);
     default:
       return value === null || value === undefined ? null : String(value);
   }

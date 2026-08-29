@@ -107,8 +107,9 @@ completeness; the data must outlive the app (markdown/JSON export from Phase 2).
 
 ## MCP server
 
-- `mcp/server.mts` (stdio). See `mcp/README.md` for registering it with Claude
-  Code / Desktop.
+- `mcp/server.mts` (stdio). A project-scoped `.mcp.json` is committed, so
+  opening this repo in Claude Code offers the server for approval; see
+  `mcp/README.md` for manual registration.
 - **Runs under the user's RLS**: it signs in with MCP_USER_EMAIL/PASSWORD
   (falling back to SEED_USER_*) and never touches the service-role key.
 - Tool logic lives in `src/lib/mcp/api.ts` so the app and the server share one
@@ -184,6 +185,11 @@ completeness; the data must outlive the app (markdown/JSON export from Phase 2).
   `http://localhost:3000/api/google/callback`.
 - `google_connections` holds tokens per (user, kind); RLS is owner-only.
   Refresh tokens arrive only on first consent — re-connects keep the stored one.
+- **Date values carry their own precision** (`src/lib/db/date-value.ts`): a
+  plain `2026-08-29` is all-day, a full ISO string is timed. No schema change
+  was needed — existing all-day values keep working. Sorting compares
+  instants (UTC offsets do not sort lexicographically); filters stay
+  day-level so "is on the 29th" matches any time that day.
 - Calendar sync (`POST /api/google/sync`) runs pull-then-push per call.
   Planning logic is pure and unit-tested (`src/lib/google/calendar-sync.ts`);
   the route only does I/O. Rows link to events via a reserved `_gcal` key in

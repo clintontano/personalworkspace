@@ -63,7 +63,9 @@ describe("coerceValue", () => {
     expect(coerceValue(estimate, "")).toBeNull();
     expect(coerceValue(flag, "true")).toBe(true);
     expect(coerceValue(flag, false)).toBe(false);
-    expect(coerceValue(due, "2026-09-01T10:00:00Z")).toBe("2026-09-01");
+    expect(coerceValue(due, "2026-09-01")).toBe("2026-09-01");
+    // a supplied time is preserved rather than truncated away
+    expect(coerceValue(due, "2026-09-01T10:00:00Z")).toBe("2026-09-01T10:00:00.000Z");
     expect(coerceValue(due, "")).toBeNull();
   });
 });

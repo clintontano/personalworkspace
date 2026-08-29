@@ -41,12 +41,29 @@ export type PushAction =
   | { kind: "insert"; pageId: string; title: string; date: string }
   | { kind: "patch"; pageId: string; eventId: string; title: string; date: string | null };
 
+/**
+ * The stored value for an event: the plain day for all-day events, the full
+ * timestamp for timed ones, so a round trip does not flatten a 10:00 meeting
+ * into an all-day block.
+ */
 export function eventDate(event: GcalEvent): string | null {
   const start = event.start;
   if (!start) return null;
   if (start.date) return start.date;
-  if (start.dateTime) return start.dateTime.slice(0, 10);
+  if (start.dateTime) {
+    const parsed = new Date(start.dateTime);
+    return Number.isNaN(parsed.getTime()) ? null : parsed.toISOString();
+  }
   return null;
+}
+
+/** Milliseconds between an event's start and end, when both are timed. */
+export function eventDuration(event: GcalEvent): number | null {
+  const start = event.start?.dateTime;
+  const end = event.end?.dateTime;
+  if (!start || !end) return null;
+  const ms = new Date(end).getTime() - new Date(start).getTime();
+  return Number.isFinite(ms) && ms > 0 ? ms : null;
 }
 
 /** Decide what to do locally for each remotely-changed event. */
@@ -109,14 +126,37 @@ export function planPush(
   return actions;
 }
 
-/** All-day event body for an insert/patch; date null keeps the event's time. */
-export function eventBody(title: string, date: string | null): Record<string, unknown> {
+export const DEFAULT_EVENT_MS = 60 * 60 * 1000;
+
+/**
+ * Event body for an insert/patch.
+ *
+ * A value with a time produces a timed event (keeping the existing duration
+ * where known); a plain day produces an all-day event with the exclusive end
+ * date Google expects. A null value touches only the title, leaving the
+ * event's existing schedule alone.
+ */
+export function eventBody(
+  title: string,
+  value: string | null,
+  durationMs: number | null = null,
+): Record<string, unknown> {
   const body: Record<string, unknown> = { summary: title };
-  if (date) {
-    const next = new Date(date + "T00:00:00Z");
-    next.setUTCDate(next.getUTCDate() + 1);
-    body.start = { date };
-    body.end = { date: next.toISOString().slice(0, 10) };
+  if (!value) return body;
+
+  if (value.length > 10 && value.includes("T")) {
+    const start = new Date(value);
+    if (Number.isNaN(start.getTime())) return body;
+    const end = new Date(start.getTime() + (durationMs ?? DEFAULT_EVENT_MS));
+    body.start = { dateTime: start.toISOString() };
+    body.end = { dateTime: end.toISOString() };
+    return body;
   }
+
+  const day = value.slice(0, 10);
+  const next = new Date(day + "T00:00:00Z");
+  next.setUTCDate(next.getUTCDate() + 1);
+  body.start = { date: day };
+  body.end = { date: next.toISOString().slice(0, 10) };
   return body;
 }

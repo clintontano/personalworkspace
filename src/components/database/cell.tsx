@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import { Badge } from "@/components/ui/badge";
 import { Checkbox } from "@/components/ui/checkbox";
+import { Clock } from "lucide-react";
 import {
   DropdownMenu,
   DropdownMenuCheckboxItem,
@@ -11,6 +12,12 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { fetchRelationOptions } from "@/lib/db/data";
+import {
+  datePart,
+  fromLocalInput,
+  hasTime,
+  toLocalInput,
+} from "@/lib/db/date-value";
 import type { Property, PropertyValue } from "@/lib/db/model";
 import { cn } from "@/lib/utils";
 import { optionColorClass } from "./option-colors";
@@ -59,18 +66,7 @@ export function PropertyCell({
         </div>
       );
     case "date":
-      return (
-        <input
-          type="date"
-          value={typeof value === "string" ? value.slice(0, 10) : ""}
-          onChange={(e) => onChange(e.target.value === "" ? null : e.target.value)}
-          className={cn(
-            "w-full bg-transparent px-2 py-1 text-sm outline-none",
-            !value && "text-muted-foreground",
-            className,
-          )}
-        />
-      );
+      return <DateCell value={value} onChange={onChange} className={className} />;
     case "select":
       return <SelectCell property={property} value={value} onChange={onChange} className={className} />;
     case "multi_select":
@@ -80,6 +76,63 @@ export function PropertyCell({
     default:
       return null;
   }
+}
+
+/**
+ * A date value is all-day ("2026-08-29") or timed (full ISO). The clock
+ * button switches between the two; the input type follows the value.
+ */
+function DateCell({
+  value,
+  onChange,
+  className,
+}: {
+  value: PropertyValue;
+  onChange: (value: PropertyValue) => void;
+  className?: string;
+}) {
+  const timed = hasTime(value);
+
+  return (
+    <div className={cn("group/date flex items-center gap-1 px-2 py-1", className)}>
+      {timed ? (
+        <input
+          type="datetime-local"
+          aria-label="Date and time"
+          value={toLocalInput(value)}
+          onChange={(e) => onChange(fromLocalInput(e.target.value))}
+          className="w-full bg-transparent text-sm outline-none"
+        />
+      ) : (
+        <input
+          type="date"
+          aria-label="Date"
+          value={datePart(value) ?? ""}
+          onChange={(e) => onChange(e.target.value === "" ? null : e.target.value)}
+          className={cn(
+            "w-full bg-transparent text-sm outline-none",
+            !value && "text-muted-foreground",
+          )}
+        />
+      )}
+      {value ? (
+        <button
+          type="button"
+          aria-label={timed ? "Remove time" : "Add time"}
+          title={timed ? "Remove time" : "Add time"}
+          onClick={() =>
+            onChange(timed ? datePart(value) : fromLocalInput(toLocalInput(value)))
+          }
+          className={cn(
+            "shrink-0 rounded p-0.5 text-muted-foreground hover:bg-muted-foreground/20",
+            !timed && "opacity-0 group-hover/date:opacity-100",
+          )}
+        >
+          <Clock className="h-3 w-3" />
+        </button>
+      ) : null}
+    </div>
+  );
 }
 
 function TextCell({

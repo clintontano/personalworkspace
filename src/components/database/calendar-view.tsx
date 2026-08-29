@@ -5,6 +5,7 @@ import Link from "next/link";
 import { useMemo, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { addMonths, monthGrid, monthLabel } from "@/lib/calendar/month";
+import { datePart, formatTime, toInstant } from "@/lib/db/date-value";
 import type { Property, PropertyValue, Row } from "@/lib/db/model";
 import { cn } from "@/lib/utils";
 import { optionColorClass } from "./option-colors";
@@ -34,12 +35,19 @@ export function CalendarView({
     const map = new Map<string, Row[]>();
     if (!dateProperty) return map;
     for (const row of rows) {
-      const value = row.properties[dateProperty.id];
-      if (typeof value !== "string" || value === "") continue;
-      const key = value.slice(0, 10);
+      const key = datePart(row.properties[dateProperty.id]);
+      if (!key) continue;
       const list = map.get(key) ?? [];
       list.push(row);
       map.set(key, list);
+    }
+    // Within a day, timed events run in clock order; all-day events lead.
+    for (const list of map.values()) {
+      list.sort(
+        (a, b) =>
+          (toInstant(a.properties[dateProperty.id]) ?? 0) -
+          (toInstant(b.properties[dateProperty.id]) ?? 0),
+      );
     }
     return map;
   }, [rows, dateProperty]);
@@ -136,6 +144,11 @@ export function CalendarView({
                         option ? optionColorClass(option.color) : "bg-secondary",
                       )}
                     >
+                      {formatTime(row.properties[dateProperty.id]) ? (
+                        <span className="mr-1 opacity-70">
+                          {formatTime(row.properties[dateProperty.id])}
+                        </span>
+                      ) : null}
                       {row.title || "Untitled"}
                     </Link>
                   );
