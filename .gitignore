@@ -44,3 +44,7 @@ next-env.d.ts
 playwright/.auth
 test-results/
 playwright-report/
+
+# ad-hoc scratch scripts used while debugging against the hosted project
+*-tmp.ts
+*-tmp.mjs

@@ -123,6 +123,12 @@ completeness; the data must outlive the app (markdown/JSON export from Phase 2).
   no UI.
 - The file is `.mts`: tsx compiles `.ts` here as CJS, which rejects top-level
   await and ESM-only SDK imports.
+- **Launchers must set the working directory.** tsx resolves the `@/` path
+  alias against cwd, so a launcher starting the server from `/` dies on
+  `Cannot find module '@/lib/...'`. Claude Code gets this free from the
+  project-scoped `.mcp.json`; the desktop app needs
+  `zsh -lc "cd <project> && exec npx tsx mcp/server.mts"`, which also picks
+  up the nvm-pinned Node 22.
 
 ## Automations
 

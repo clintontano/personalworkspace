@@ -22,7 +22,25 @@ To register it manually instead (CLI):
 claude mcp add workspace -- npx tsx /Users/us/Documents/personalworkspace/mcp/server.mts
 ```
 
-Or in Claude Desktop's config:
+For the **Claude desktop app** (its Connectors list, separate from Claude
+Code), the server goes in
+`~/Library/Application Support/Claude/claude_desktop_config.json`. Launch it
+through a login shell that enters the project first — tsx resolves the `@/`
+path alias against the working directory, and the app starts servers from
+`/`:
+
+```json
+{
+  "mcpServers": {
+    "workspace": {
+      "command": "zsh",
+      "args": ["-lc", "cd /path/to/personalworkspace && exec npx tsx mcp/server.mts"]
+    }
+  }
+}
+```
+
+Older Claude Desktop config style:
 
 ```json
 {
