@@ -69,6 +69,24 @@ export async function renamePage(pageId: string, title: string) {
   if (error) throw error;
 }
 
+/**
+ * Reposition a page in the tree. Callers compute the key with
+ * `keyForMove`/`keyForAppend` and must have already rejected moves into the
+ * page's own subtree.
+ */
+export async function movePage(
+  pageId: string,
+  parentPageId: string | null,
+  orderKey: string,
+) {
+  const supabase = createClient();
+  const { error } = await supabase
+    .from("pages")
+    .update({ parent_page_id: parentPageId, order_key: orderKey })
+    .eq("id", pageId);
+  if (error) throw error;
+}
+
 export async function archivePage(pageId: string) {
   const supabase = createClient();
   const { error } = await supabase

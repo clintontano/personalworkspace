@@ -5,8 +5,21 @@ import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { createDatabase } from "@/lib/db/data";
-import { archivePage, createPage, fetchPages, type PageMeta } from "@/lib/pages";
+import {
+  archivePage,
+  createPage,
+  fetchPages,
+  movePage,
+  type PageMeta,
+} from "@/lib/pages";
 import { notifyPagesChanged, onBroadcast, pagesTopic } from "@/lib/realtime";
+import {
+  dropZone,
+  isWithinSubtree,
+  keyForAppend,
+  keyForMove,
+  type DropPosition,
+} from "@/lib/reorder";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 
@@ -19,6 +32,16 @@ export function PageTree({
 }) {
   const [pages, setPages] = useState(initialPages);
   const [expanded, setExpanded] = useState<Set<string>>(new Set());
+  // The dragged id is kept in a ref as well as state: dragover fires before
+  // a state update from dragstart has flushed, and it must call
+  // preventDefault() synchronously or the browser never treats the row as a
+  // drop target.
+  const draggingRef = useRef<string | null>(null);
+  const [dragging, setDragging] = useState<string | null>(null);
+  const [dropHint, setDropHint] = useState<{
+    id: string;
+    zone: DropPosition | "inside";
+  } | null>(null);
   const router = useRouter();
   const pathname = usePathname();
   // Guards against overlapping refetches resolving out of order: only the
@@ -67,6 +90,62 @@ export function PageTree({
     router.push(`/app/p/${id}`);
   };
 
+  /**
+   * Apply a drop: reposition the dragged page as a sibling of the target, or
+   * nest it inside when the pointer is over the row's middle band.
+   */
+  const handleDrop = (
+    targetId: string,
+    zone: DropPosition | "inside",
+    draggedId: string | null,
+  ) => {
+    draggingRef.current = null;
+    setDragging(null);
+    setDropHint(null);
+    if (!draggedId || draggedId === targetId) return;
+
+    // Moving a page into its own subtree would detach that branch entirely.
+    if (isWithinSubtree(pages, draggedId, targetId)) return;
+
+    const target = pages.find((p) => p.id === targetId);
+    if (!target) return;
+
+    const parentId = zone === "inside" ? targetId : target.parent_page_id;
+    const siblings = pages.filter(
+      (p) => p.parent_page_id === parentId && p.id !== draggedId,
+    );
+    const orderKey =
+      zone === "inside"
+        ? keyForAppend(siblings)
+        : keyForMove(
+            pages.filter((p) => p.parent_page_id === target.parent_page_id),
+            draggedId,
+            targetId,
+            zone,
+          );
+    if (!orderKey) return;
+
+    // Optimistic: the tree reorders under the pointer, then persists.
+    setPages((prev) =>
+      prev.map((p) =>
+        p.id === draggedId
+          ? { ...p, parent_page_id: parentId, order_key: orderKey }
+          : p,
+      ),
+    );
+    if (zone === "inside") setExpanded((prev) => new Set(prev).add(targetId));
+
+    void (async () => {
+      try {
+        await movePage(draggedId, parentId, orderKey);
+        notifyPagesChanged(workspaceId);
+      } catch (error) {
+        console.error("page move failed", error);
+        void refetch();
+      }
+    })();
+  };
+
   const remove = async (id: string) => {
     await archivePage(id);
     notifyPagesChanged(workspaceId);
@@ -79,16 +158,72 @@ export function PageTree({
       const hasChildren = (byParent.get(page.id) ?? []).length > 0;
       const isOpen = expanded.has(page.id);
       const active = pathname === `/app/p/${page.id}`;
+      const hint = dropHint?.id === page.id ? dropHint.zone : null;
       return (
         <div key={page.id}>
           <div
             data-tree-page={page.title}
+            draggable
+            onDragStart={(e) => {
+              e.dataTransfer.effectAllowed = "move";
+              e.dataTransfer.setData("text/page-id", page.id);
+              draggingRef.current = page.id;
+              setDragging(page.id);
+            }}
+            onDragEnd={() => {
+              draggingRef.current = null;
+              setDragging(null);
+              setDropHint(null);
+            }}
+            onDragOver={(e) => {
+              if (!e.dataTransfer.types.includes("text/page-id")) return;
+              const draggedId = draggingRef.current;
+              if (draggedId === page.id) return;
+              // never offer a drop that would detach the dragged subtree
+              if (draggedId && isWithinSubtree(pages, draggedId, page.id)) return;
+              // must happen synchronously for the drop to be accepted
+              e.preventDefault();
+              e.dataTransfer.dropEffect = "move";
+              const rect = e.currentTarget.getBoundingClientRect();
+              setDropHint({
+                id: page.id,
+                zone: dropZone(e.clientY - rect.top, rect.height, true),
+              });
+            }}
+            onDragLeave={(e) => {
+              // ignore moves onto this row's own children
+              if (e.currentTarget.contains(e.relatedTarget as Node)) return;
+              setDropHint((prev) => (prev?.id === page.id ? null : prev));
+            }}
+            onDrop={(e) => {
+              e.preventDefault();
+              // the payload is authoritative; state may lag a fast drag
+              const draggedId =
+                e.dataTransfer.getData("text/page-id") || draggingRef.current;
+              const rect = e.currentTarget.getBoundingClientRect();
+              const zone =
+                dropHint?.id === page.id
+                  ? dropHint.zone
+                  : dropZone(e.clientY - rect.top, rect.height, true);
+              handleDrop(page.id, zone, draggedId);
+            }}
             className={cn(
-              "group flex items-center gap-1 rounded-md px-1 py-1 text-sm hover:bg-accent",
+              "group relative flex items-center gap-1 rounded-md px-1 py-1 text-sm hover:bg-accent",
               active && "bg-accent font-medium",
+              dragging === page.id && "opacity-40",
+              hint === "inside" && "ring-1 ring-primary ring-inset",
             )}
             style={{ paddingLeft: `${depth * 12 + 4}px` }}
           >
+            {hint === "before" || hint === "after" ? (
+              <span
+                aria-hidden
+                className={cn(
+                  "pointer-events-none absolute inset-x-1 h-0.5 rounded-full bg-primary",
+                  hint === "before" ? "top-0" : "bottom-0",
+                )}
+              />
+            ) : null}
             <button
               type="button"
               aria-label={isOpen ? "Collapse" : "Expand"}
@@ -104,6 +239,9 @@ export function PageTree({
             </button>
             <Link
               href={`/app/p/${page.id}`}
+              // anchors drag natively and would carry a URL payload instead
+              // of starting the row drag
+              draggable={false}
               className="flex min-w-0 flex-1 items-center gap-1.5"
             >
               <span className="shrink-0 text-sm">

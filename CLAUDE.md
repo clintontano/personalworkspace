@@ -52,7 +52,11 @@ completeness; the data must outlive the app (markdown/JSON export from Phase 2).
   trigger), `created_by` where meaningful. Automations (Phase 5) rely on
   `updated_at` being trustworthy.
 - Ordering (blocks, pages, rows): fractional index strings via
-  `fractional-indexing`, indexed alongside the parent columns.
+  `fractional-indexing`, indexed alongside the parent columns. **Only ever
+  generate these with `generateKeyBetween`** — hand-rolled strings like
+  `a9000` look ordered but are not valid keys, and the library throws
+  (`Error: 004 >= 004`) the first time something is dragged between two of
+  them.
 - Supabase clients live in `src/lib/supabase/` (browser/server/middleware
   variants), typed with generated `Database` types.
 - No state-management library until something actually hurts.
@@ -174,6 +178,26 @@ completeness; the data must outlive the app (markdown/JSON export from Phase 2).
   React Compiler lint forbids synchronous setState in effects.
 - Deleting the block leaves the database page in the tree, which is what
   Notion does; the data is not silently destroyed.
+
+## Drag and drop
+
+- Native HTML5 drag throughout (board cards, table columns, sidebar pages) —
+  no drag library.
+- **`dragover` must call `preventDefault()` synchronously or the drop never
+  happens.** Only one dragover may fire for a quick drag, and a guard that
+  reads React state set in `dragstart` will not see it yet, so the dragged id
+  is held in a ref and the payload is read from `dataTransfer` on drop.
+- Reorder arithmetic is pure and unit-tested (`src/lib/reorder.ts`):
+  `keyForMove` returns null for no-op moves so nothing is written,
+  `isWithinSubtree` refuses to nest a page inside its own descendants, and
+  `dropZone` maps pointer position to before/inside/after bands.
+- Column widths are per-view (`config.columnWidths`, keyed by property id
+  plus `"title"`); column order is the property's own `order_key`, so it is a
+  property of the database rather than of one view. The table uses
+  `table-layout: fixed` with a `<colgroup>`, so a resize moves one `<col>`
+  rather than reflowing every cell.
+- Resizing tracks locally during the drag and persists on pointer-up, so the
+  column follows the cursor rather than the network.
 
 ## Theming
 

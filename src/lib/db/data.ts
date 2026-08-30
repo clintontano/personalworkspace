@@ -16,6 +16,8 @@ export type ViewConfig = {
   hidden?: string[];
   /** calendar: the date property to place rows by */
   dateProperty?: string;
+  /** table: pixel widths keyed by property id, plus "title" for the first column */
+  columnWidths?: Record<string, number>;
 };
 
 export type ViewRecord = {
@@ -297,6 +299,16 @@ const DEFAULT_STATUS_OPTIONS = [
 ];
 
 /** Create a database page with default properties and views. */
+/** Persist a dragged column's new position. */
+export async function reorderProperty(propertyId: string, orderKey: string) {
+  const supabase = createClient();
+  const { error } = await supabase
+    .from("database_properties")
+    .update({ order_key: orderKey })
+    .eq("id", propertyId);
+  if (error) throw error;
+}
+
 export async function createDatabase(
   workspaceId: string,
   parentPageId: string | null = null,

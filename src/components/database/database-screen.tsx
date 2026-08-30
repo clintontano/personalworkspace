@@ -14,6 +14,7 @@ import {
   addProperty,
   createRow,
   createView,
+  reorderProperty,
   saveViewConfig,
   type ViewConfig,
   type ViewRecord,
@@ -22,6 +23,7 @@ import {
 import { evaluateFilter } from "@/lib/db/filters";
 import type { Property, PropertyType, PropertyValue, Row } from "@/lib/db/model";
 import { sortRows } from "@/lib/db/sorts";
+import { keyForMove, type DropPosition } from "@/lib/reorder";
 import { archivePage, renamePage } from "@/lib/pages";
 import { notifyPagesChanged } from "@/lib/realtime";
 import { updateRowProperties } from "@/lib/db/data";
@@ -154,6 +156,34 @@ export function DatabaseScreen({
       activeView.id,
       setTimeout(() => void saveViewConfig(activeView.id, config), 500),
     );
+  };
+
+  const onResizeColumn = (columnId: string, width: number) => {
+    if (!activeView) return;
+    onConfigChange({
+      ...activeView.config,
+      columnWidths: { ...(activeView.config.columnWidths ?? {}), [columnId]: width },
+    });
+  };
+
+  /**
+   * Column order lives on the property itself rather than in view config, so
+   * it reuses the fractional order keys every other ordered thing here uses.
+   * Reordering applies to the database, not just the current view.
+   */
+  const onReorderColumn = (
+    draggedId: string,
+    targetId: string,
+    position: DropPosition,
+  ) => {
+    const orderKey = keyForMove(properties, draggedId, targetId, position);
+    if (!orderKey) return;
+    setProperties((prev) =>
+      [...prev]
+        .map((p) => (p.id === draggedId ? { ...p, order_key: orderKey } : p))
+        .sort((a, b) => (a.order_key < b.order_key ? -1 : 1)),
+    );
+    void reorderProperty(draggedId, orderKey);
   };
 
   const onAddView = async (type: ViewType) => {
@@ -297,11 +327,14 @@ export function DatabaseScreen({
           rows={visibleRows}
           properties={visibleProperties}
           groupBy={activeView.type === "table" ? groupByProperty : undefined}
+          columnWidths={activeView.config.columnWidths}
           onTitleChange={onRowTitleChange}
           onValueChange={onValueChange}
           onAddRow={(presets) => void onAddRow(presets)}
           onDeleteRow={onDeleteRow}
           onAddProperty={(name, type) => void onAddProperty(name, type)}
+          onResizeColumn={onResizeColumn}
+          onReorderColumn={onReorderColumn}
         />
       )}
     </div>

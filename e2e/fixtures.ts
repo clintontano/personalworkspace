@@ -12,6 +12,7 @@
  */
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 import { config } from "dotenv";
+import { generateKeyBetween } from "fractional-indexing";
 import type { Database, Json } from "../src/lib/database.types";
 
 config({ path: ".env.local", quiet: true });
@@ -64,8 +65,42 @@ export function fixtureName(label: string): string {
   return `${FIXTURE_PREFIX}${label} ${Date.now()}${Math.floor(Math.random() * 1000)}`;
 }
 
-/** Order keys only need to sort; fixtures never reorder. */
-const orderKey = (index: number) => `a${String(index).padStart(4, "0")}`;
+/**
+ * Fixture keys must be real fractional-indexing keys, not hand-rolled
+ * strings: the app calls generateKeyBetween on them when reordering, and that
+ * throws on anything it did not produce. Chaining from null gives a valid,
+ * strictly increasing sequence.
+ */
+function keySequence(count: number): string[] {
+  const keys: string[] = [];
+  let previous: string | null = null;
+  for (let i = 0; i < count; i++) {
+    previous = generateKeyBetween(previous, null);
+    keys.push(previous);
+  }
+  return keys;
+}
+
+const orderKey = (index: number) => keySequence(index + 1)[index];
+
+/**
+ * A key after every existing sibling. Reading the current maximum keeps
+ * fixtures from colliding with real pages, or with leftovers from a previous
+ * run — a duplicate key made generateKeyBetween throw mid-drag.
+ */
+async function nextSiblingKey(parentPageId: string | null): Promise<string> {
+  const ws = await workspaceId();
+  let query = admin()
+    .from("pages")
+    .select("order_key")
+    .eq("workspace_id", ws)
+    .is("archived_at", null);
+  query = parentPageId
+    ? query.eq("parent_page_id", parentPageId)
+    : query.is("parent_page_id", null);
+  const { data } = await query.order("order_key", { ascending: false }).limit(1);
+  return generateKeyBetween(data?.[0]?.order_key ?? null, null);
+}
 
 function paragraph(text: string) {
   return {
@@ -107,7 +142,7 @@ export async function createFixturePage(options: {
       created_by: owner,
       title,
       icon: options.icon ?? null,
-      order_key: orderKey(9000),
+      order_key: await nextSiblingKey(null),
     })
     .select("id")
     .single();
@@ -135,7 +170,7 @@ export async function createFixturePage(options: {
         created_by: owner,
         parent_page_id: page.id,
         title: childTitle,
-        order_key: orderKey(0),
+        order_key: await nextSiblingKey(page.id),
       })
       .select("id")
       .single();
@@ -190,7 +225,7 @@ export async function createFixtureDatabase(options: {
       workspace_id: ws,
       created_by: owner,
       title,
-      order_key: orderKey(9500),
+      order_key: await nextSiblingKey(null),
     })
     .select("id")
     .single();
@@ -259,7 +294,7 @@ export async function createFixtureDatabase(options: {
         created_by: owner,
         parent_page_id: page.id,
         title: row.title,
-        order_key: orderKey(index),
+        order_key: await nextSiblingKey(page.id),
       })
       .select("id")
       .single();
@@ -329,6 +364,43 @@ export async function deleteFixturePage(pageId: string) {
     await admin().from("pages").delete().eq("id", child.id);
   }
   await admin().from("pages").delete().eq("id", pageId);
+}
+
+/** Read helpers so specs can assert on what was actually persisted. */
+export async function readPageMeta(pageId: string) {
+  const { data, error } = await admin()
+    .from("pages")
+    .select("id, parent_page_id, order_key, title")
+    .eq("id", pageId)
+    .single();
+  if (error) throw error;
+  return data;
+}
+
+/** Property names in stored order. */
+export async function readPropertyOrder(databaseId: string): Promise<string[]> {
+  const { data, error } = await admin()
+    .from("database_properties")
+    .select("name, order_key")
+    .eq("database_id", databaseId)
+    .order("order_key");
+  if (error) throw error;
+  return data.map((p) => p.name);
+}
+
+/** The first view's config, where column widths live. */
+export async function readViewConfig(
+  databaseId: string,
+): Promise<{ columnWidths?: Record<string, number> }> {
+  const { data, error } = await admin()
+    .from("views")
+    .select("config, order_key")
+    .eq("database_id", databaseId)
+    .order("order_key")
+    .limit(1)
+    .single();
+  if (error) throw error;
+  return (data.config ?? {}) as { columnWidths?: Record<string, number> };
 }
 
 export async function deleteFixtureAutomation(automationId: string) {
