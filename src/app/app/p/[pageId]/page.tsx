@@ -2,6 +2,7 @@ import { notFound } from "next/navigation";
 import { DatabaseScreen } from "@/components/database/database-screen";
 import { PageView } from "@/components/editor/page-view";
 import type { BlockRowLike } from "@/lib/blocks/sync";
+import { databaseIdsInBlocks, fetchBundleWith, type DatabaseBundleData } from "@/lib/db/bundle";
 import { toRow, type ViewConfig, type ViewRecord, type ViewType } from "@/lib/db/data";
 import type { Property, PropertyConfig, PropertyType, PropertyValue } from "@/lib/db/model";
 import { createClient } from "@/lib/supabase/server";
@@ -110,6 +111,13 @@ export default async function Page({
     .eq("page_id", pageId)
     .order("order_key");
 
+  // Embedded databases are loaded here rather than by the block itself, so
+  // they paint with the page instead of after a client round trip.
+  const embeddedIds = databaseIdsInBlocks(blocks ?? []);
+  const inlineDatabases = (
+    await Promise.all(embeddedIds.map((id) => fetchBundleWith(supabase, id)))
+  ).filter((b): b is DatabaseBundleData => b !== null);
+
   return (
     <PageView
       key={page.id}
@@ -117,6 +125,7 @@ export default async function Page({
       workspaceId={page.workspace_id}
       initialTitle={page.title}
       initialRows={(blocks ?? []) as BlockRowLike[]}
+      inlineDatabases={inlineDatabases}
       rowProperties={rowProperties}
       rowValues={rowValues}
     />

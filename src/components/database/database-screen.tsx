@@ -1,6 +1,7 @@
 "use client";
 
-import { Plus } from "lucide-react";
+import { Maximize2, Plus } from "lucide-react";
+import Link from "next/link";
 import { useMemo, useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
 import {
@@ -46,6 +47,7 @@ export function DatabaseScreen({
   initialProperties,
   initialViews,
   initialRows,
+  inline = false,
 }: {
   databasePageId: string;
   workspaceId: string;
@@ -53,6 +55,8 @@ export function DatabaseScreen({
   initialProperties: Property[];
   initialViews: ViewRecord[];
   initialRows: Row[];
+  /** Embedded in another page's editor: compact chrome, no page padding. */
+  inline?: boolean;
 }) {
   const [title, setTitle] = useState(initialTitle);
   const [properties, setProperties] = useState(initialProperties);
@@ -170,16 +174,40 @@ export function DatabaseScreen({
     : undefined;
 
   return (
-    <div className="mx-auto flex h-full max-w-5xl flex-col px-8 py-10">
-      <input
-        data-testid="page-title"
-        value={title}
-        onChange={(e) => onTitleChange(e.target.value)}
-        placeholder="Untitled database"
-        className="mb-4 w-full bg-transparent text-4xl font-bold outline-none placeholder:text-muted-foreground/40"
-      />
+    <div
+      className={cn(
+        "flex flex-col",
+        inline ? "w-full" : "mx-auto h-full max-w-5xl px-8 py-10",
+      )}
+    >
+      <div className={cn("flex items-center gap-2", inline ? "mb-1" : "mb-4")}>
+        <input
+          data-testid={inline ? "inline-database-title" : "page-title"}
+          value={title}
+          onChange={(e) => onTitleChange(e.target.value)}
+          placeholder="Untitled database"
+          className={cn(
+            "w-full bg-transparent outline-none placeholder:text-muted-foreground/40",
+            inline ? "text-base font-semibold" : "text-4xl font-bold",
+          )}
+        />
+        {inline ? (
+          <Link
+            href={`/app/p/${databasePageId}`}
+            title="Open as full page"
+            className="shrink-0 rounded p-1 text-muted-foreground opacity-0 transition-opacity hover:bg-accent group-hover/inline-db:opacity-100"
+          >
+            <Maximize2 className="h-3.5 w-3.5" />
+          </Link>
+        ) : null}
+      </div>
 
-      <div className="mb-2 flex items-center justify-between border-b pb-1">
+      <div
+        className={cn(
+          "flex items-center justify-between border-b pb-1",
+          inline ? "mb-1" : "mb-2",
+        )}
+      >
         <div className="flex items-center gap-1">
           {views.map((view) => (
             <button
@@ -210,13 +238,17 @@ export function DatabaseScreen({
           </DropdownMenu>
         </div>
         <div className="flex items-center gap-1">
-          <FormsMenu
-            databaseId={databasePageId}
-            workspaceId={workspaceId}
-            databaseTitle={title}
-            properties={properties}
-          />
-          <ShareMenu pageId={databasePageId} workspaceId={workspaceId} title={title} />
+          {inline ? null : (
+            <>
+              <FormsMenu
+                databaseId={databasePageId}
+                workspaceId={workspaceId}
+                databaseTitle={title}
+                properties={properties}
+              />
+              <ShareMenu pageId={databasePageId} workspaceId={workspaceId} title={title} />
+            </>
+          )}
           {activeView ? (
             <ViewToolbar
               properties={properties}
@@ -225,7 +257,13 @@ export function DatabaseScreen({
               showGroupBy={activeView.type === "table" || activeView.type === "board"}
             />
           ) : null}
-          <Button data-testid="add-row" size="sm" onClick={() => void onAddRow()}>
+          <Button
+            data-testid="add-row"
+            size="sm"
+            variant={inline ? "ghost" : "default"}
+            className={inline ? "text-muted-foreground" : undefined}
+            onClick={() => void onAddRow()}
+          >
             New row
           </Button>
         </div>

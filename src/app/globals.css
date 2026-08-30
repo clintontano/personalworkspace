@@ -105,3 +105,26 @@
     @apply bg-background text-foreground;
   }
 }
+
+/*
+ * BlockNote ships its own editor surface colour, which renders as a lighter
+ * slab sitting inside the page. Inherit the page background instead, so the
+ * editor, any inline databases and the page around them read as one
+ * continuous surface rather than stacked cards.
+ */
+/* BlockNote sets these on .bn-root and .bn-root[data-color-scheme=dark], so
+   the overrides need at least that specificity to win. */
+.bn-root.bn-container,
+.bn-root.bn-container[data-color-scheme="light"],
+.bn-root.bn-container[data-color-scheme="dark"] {
+  --bn-colors-editor-background: transparent;
+  --bn-colors-editor-text: var(--foreground);
+}
+
+/*
+ * An embedded database is a widget inside the text flow: it should not pick up
+ * the editor's text cursor or hover affordances meant for paragraphs.
+ */
+.bn-block-content[data-content-type="database"] {
+  cursor: default;
+}

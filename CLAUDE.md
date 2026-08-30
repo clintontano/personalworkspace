@@ -153,6 +153,25 @@ completeness; the data must outlive the app (markdown/JSON export from Phase 2).
 - Cron matching is hand-rolled (`src/lib/automations/schedule.ts`, 5-field,
   unit-tested) rather than adding a dependency.
 
+## Inline databases
+
+- A database can be embedded in any page: `/database` in the slash menu
+  creates a real database page nested under the current one and inserts a
+  `database` block holding only its page id.
+- Because the embed is a normal database page, it appears in the sidebar
+  tree, opens as its own page, and is reachable from the MCP server,
+  automations and export with no special casing.
+- The block is rendered by `components/editor/inline-database.tsx`, which
+  reuses `DatabaseScreen` in `inline` mode rather than duplicating view logic.
+- Data is fetched **server-side** in the page route (`databaseIdsInBlocks` +
+  `fetchBundleWith` in `lib/db/bundle.ts`) and seeded into the client cache,
+  so an embed paints with the page instead of after a second round trip. The
+  client fetch path is only used for databases inserted after load.
+- Blocks read data through `use()` with a cached promise, not effects —
+  React Compiler lint forbids synchronous setState in effects.
+- Deleting the block leaves the database page in the tree, which is what
+  Notion does; the data is not silently destroyed.
+
 ## Theming
 
 - Light / dark / system, hand-rolled in `src/lib/theme.ts` +
@@ -167,6 +186,13 @@ completeness; the data must outlive the app (markdown/JSON export from Phase 2).
   blocked (private windows).
 - BlockNote receives the resolved theme; select-option colours carry explicit
   `dark:` variants (light tints are unreadable on dark surfaces).
+- **One continuous surface.** Text inputs, selects and outline buttons are
+  transparent rather than filled, and BlockNote's own editor background is
+  overridden to transparent in `globals.css` (it otherwise paints a lighter
+  slab inside the page). BlockNote sets those variables on
+  `.bn-root[data-color-scheme=dark]`, so the override needs matching
+  specificity to win. Popovers and dropdowns keep their elevated background —
+  they float above the page rather than sitting in it.
 - Public pages (forms, published sites) inherit the same script, so they
   follow the visitor's OS setting.
 

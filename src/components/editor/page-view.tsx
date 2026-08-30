@@ -3,6 +3,7 @@
 import dynamic from "next/dynamic";
 import { useCallback, useRef, useState } from "react";
 import type { BlockRowLike } from "@/lib/blocks/sync";
+import type { DatabaseBundleData } from "@/lib/db/bundle";
 import { PropertiesPanel } from "@/components/database/properties-panel";
 import { ShareMenu } from "@/components/share/share-menu";
 import type { Property, PropertyValue } from "@/lib/db/model";
@@ -20,6 +21,7 @@ export function PageView({
   workspaceId,
   initialTitle,
   initialRows,
+  inlineDatabases,
   rowProperties,
   rowValues,
 }: {
@@ -27,6 +29,7 @@ export function PageView({
   workspaceId: string;
   initialTitle: string;
   initialRows: BlockRowLike[];
+  inlineDatabases?: DatabaseBundleData[];
   rowProperties?: Property[] | null;
   rowValues?: Record<string, PropertyValue> | null;
 }) {
@@ -75,6 +78,7 @@ export function PageView({
           pageId={pageId}
           workspaceId={workspaceId}
           initialRows={initialRows}
+          inlineDatabases={inlineDatabases}
           onSaveStateChange={setSaveState}
         />
       </div>

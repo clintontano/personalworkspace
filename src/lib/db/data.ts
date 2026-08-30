@@ -29,8 +29,10 @@ export type ViewRecord = {
 export type DatabaseBundle = {
   pageId: string;
   title: string;
+  icon: string | null;
   properties: Property[];
   views: ViewRecord[];
+  rows: Row[];
 };
 
 function toProperty(raw: {
@@ -65,6 +67,64 @@ export function toRow(raw: {
     orderKey: raw.order_key,
     createdAt: raw.created_at,
     updatedAt: raw.updated_at,
+  };
+}
+
+/**
+ * Everything an inline database block needs, in one round trip group.
+ * The page route fetches the same shape on the server; this is the client
+ * equivalent for databases embedded inside another page's editor.
+ */
+export async function fetchDatabaseBundle(
+  databaseId: string,
+): Promise<DatabaseBundle | null> {
+  const supabase = createClient();
+  const [{ data: page }, { data: props }, { data: views }, { data: rawRows }] =
+    await Promise.all([
+      supabase
+        .from("pages")
+        .select("id, title, icon")
+        .eq("id", databaseId)
+        .is("archived_at", null)
+        .maybeSingle(),
+      supabase
+        .from("database_properties")
+        .select("id, name, type, config, order_key")
+        .eq("database_id", databaseId)
+        .order("order_key"),
+      supabase
+        .from("views")
+        .select("id, name, type, config, order_key")
+        .eq("database_id", databaseId)
+        .order("order_key"),
+      supabase
+        .from("database_rows")
+        .select(
+          "page_id, properties, order_key, created_at, updated_at, pages!inner(title, icon, archived_at)",
+        )
+        .eq("database_id", databaseId)
+        .is("pages.archived_at", null)
+        .order("order_key"),
+    ]);
+
+  // The database page was deleted or archived out from under the block.
+  if (!page) return null;
+
+  return {
+    pageId: page.id,
+    title: page.title,
+    icon: page.icon,
+    properties: (props ?? []).map(toProperty),
+    views: (views ?? []).map(
+      (v): ViewRecord => ({
+        id: v.id,
+        name: v.name,
+        type: v.type as ViewType,
+        config: (v.config ?? {}) as ViewConfig,
+        order_key: v.order_key,
+      }),
+    ),
+    rows: (rawRows ?? []).map(toRow),
   };
 }
 

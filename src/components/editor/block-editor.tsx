@@ -3,9 +3,20 @@
 import "@blocknote/core/fonts/inter.css";
 import "@blocknote/shadcn/style.css";
 
-import { useCreateBlockNote } from "@blocknote/react";
+import { filterSuggestionItems } from "@blocknote/core";
+import {
+  getDefaultReactSlashMenuItems,
+  SuggestionMenuController,
+  useCreateBlockNote,
+  type DefaultReactSuggestionItem,
+} from "@blocknote/react";
 import { BlockNoteView } from "@blocknote/shadcn";
+import { Table2 } from "lucide-react";
 import { useEffect, useMemo, useRef } from "react";
+import { createEditorSchema } from "@/components/editor/database-block";
+import { seedInlineDatabases } from "@/components/editor/inline-database";
+import type { DatabaseBundleData } from "@/lib/db/bundle";
+import { createDatabase } from "@/lib/db/data";
 import { useTheme } from "@/components/theme-provider";
 import {
   diffBlocks,
@@ -14,7 +25,7 @@ import {
   type EditorBlockLike,
 } from "@/lib/blocks/sync";
 import type { Json } from "@/lib/database.types";
-import { broadcast, onBroadcast, pageTopic } from "@/lib/realtime";
+import { broadcast, notifyPagesChanged, onBroadcast, pageTopic } from "@/lib/realtime";
 import { createClient } from "@/lib/supabase/client";
 
 export type SaveState = "saved" | "saving" | "error";
@@ -30,13 +41,20 @@ export function BlockEditor({
   pageId,
   workspaceId,
   initialRows,
+  inlineDatabases = [],
   onSaveStateChange,
 }: {
   pageId: string;
   workspaceId: string;
   initialRows: BlockRowLike[];
+  /** Bundles for `database` blocks on this page, fetched server-side. */
+  inlineDatabases?: DatabaseBundleData[];
   onSaveStateChange?: (state: SaveState) => void;
 }) {
+  // Runs before the editor renders its blocks, so embedded databases have
+  // their data ready on first paint. Idempotent: seeding never overwrites.
+  useMemo(() => seedInlineDatabases(inlineDatabases), [inlineDatabases]);
+
   // Mirror of what the database currently holds for this page.
   const dbRows = useRef(new Map(initialRows.map((r) => [r.id, r])));
   const flow = useRef<{
@@ -53,10 +71,47 @@ export function BlockEditor({
     return doc.length > 0 ? doc : undefined;
   }, [initialRows]);
 
-  const editor = useCreateBlockNote({
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    initialContent: initialContent as any,
-  });
+  const schema = useMemo(() => createEditorSchema(workspaceId), [workspaceId]);
+
+  const editor = useCreateBlockNote(
+    {
+      schema,
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      initialContent: initialContent as any,
+    },
+    [schema],
+  );
+
+  // Slash menu: the defaults plus "Database", which creates a real database
+  // page nested under this one and embeds it.
+  const getSlashItems = async (query: string) => {
+    const insertDatabase: DefaultReactSuggestionItem = {
+      title: "Database",
+      subtext: "A table, board, list or calendar inside this page",
+      aliases: ["database", "table", "board", "grid"],
+      group: "Basic blocks",
+      icon: <Table2 className="h-4 w-4" />,
+      onItemClick: () => {
+        void (async () => {
+          const databaseId = await createDatabase(workspaceId, pageId);
+          editor.insertBlocks(
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            [{ type: "database", props: { databaseId } } as any],
+            editor.getTextCursorPosition().block,
+            "after",
+          );
+          // The sidebar tree gains the new database page.
+          notifyPagesChanged(workspaceId);
+        })();
+      },
+    };
+
+    return filterSuggestionItems(
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      [...getDefaultReactSlashMenuItems(editor as any), insertDatabase],
+      query,
+    );
+  };
 
   useEffect(() => {
     saveRef.current = async () => {
@@ -144,5 +199,9 @@ export function BlockEditor({
     };
   }, []);
 
-  return <BlockNoteView editor={editor} theme={theme} onChange={scheduleSave} />;
+  return (
+    <BlockNoteView editor={editor} theme={theme} onChange={scheduleSave} slashMenu={false}>
+      <SuggestionMenuController triggerCharacter="/" getItems={getSlashItems} />
+    </BlockNoteView>
+  );
 }
