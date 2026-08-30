@@ -126,9 +126,6 @@ async function authorizeOnce() {
   };
 }
 
-const verifier = b64url(randomBytes(32));
-const codeChallenge = b64url(createHash("sha256").update(verifier).digest());
-
 // The route reads the session from cookies; mimic what the browser sends.
 const projectRef = new URL(process.env.NEXT_PUBLIC_SUPABASE_URL!).hostname.split(".")[0];
 const cookieValue = encodeURIComponent(

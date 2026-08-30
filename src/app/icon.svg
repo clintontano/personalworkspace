@@ -1,0 +1,13 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" width="64" height="64" role="img" aria-label="Personal Workspace">
+  <rect width="64" height="64" rx="14" fill="#101012" />
+  <!-- The W is drawn as a stroked path rather than text, so it renders
+       identically everywhere instead of depending on an available font. -->
+  <path
+    d="M13 19 L23.5 45 L32 29 L40.5 45 L51 19"
+    fill="none"
+    stroke="#ffffff"
+    stroke-width="6.5"
+    stroke-linecap="round"
+    stroke-linejoin="round"
+  />
+</svg>
