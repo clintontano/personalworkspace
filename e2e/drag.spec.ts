@@ -186,3 +186,27 @@ test("dragging a page onto another nests it", async ({ page }) => {
     await deleteFixturePage(parent.pageId);
   }
 });
+
+test("dates read as month, day and year", async ({ page }) => {
+  const db = await createFixtureDatabase({
+    label: "date-format",
+    rows: [{ title: "Dated", status: "todo", due: "2026-01-01" }],
+  });
+
+  try {
+    await openApp(page);
+    await page.goto(`/app/p/${db.databaseId}`);
+    await expect(page.locator('[data-row-title="Dated"]')).toBeVisible();
+
+    // not 01/01/2026, which is what a native date input renders
+    const cell = page.locator("[data-date-value]").first();
+    await expect(cell).toHaveText("Jan 1 2026");
+
+    // clicking swaps to the native picker so the calendar UI is kept
+    await cell.click();
+    await expect(page.getByLabel("Date")).toBeVisible();
+    await expect(page.getByLabel("Date")).toHaveValue("2026-01-01");
+  } finally {
+    await deleteFixturePage(db.databaseId);
+  }
+});

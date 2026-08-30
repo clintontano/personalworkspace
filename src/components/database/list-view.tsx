@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { Badge } from "@/components/ui/badge";
-import { datePart, formatTime } from "@/lib/db/date-value";
+import { formatDateDisplay } from "@/lib/db/date-value";
 import type { Property, Row } from "@/lib/db/model";
 import { optionColorClass } from "./option-colors";
 
@@ -37,11 +37,9 @@ export function ListView({
                 ) : null;
               }
               if (p.type === "date" && typeof value === "string") {
-                const time = formatTime(value);
                 return (
                   <span key={p.id} className="text-xs text-muted-foreground">
-                    {datePart(value)}
-                    {time ? ` ${time}` : ""}
+                    {formatDateDisplay(value)}
                   </span>
                 );
               }

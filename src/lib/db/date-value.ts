@@ -47,6 +47,30 @@ export function fromLocalInput(local: string): string | null {
   return date.toISOString();
 }
 
+const MONTHS = [
+  "Jan", "Feb", "Mar", "Apr", "May", "Jun",
+  "Jul", "Aug", "Sep", "Oct", "Nov", "Dec",
+];
+
+/**
+ * How a date reads in the UI: "Jan 1 2026", or "Jan 1 2026, 10:00 AM" when a
+ * time is set. Built by hand rather than via toLocaleDateString because that
+ * inserts a comma inside the date ("Jan 1, 2026").
+ *
+ * All-day values are formatted from their parts, never through a Date: a
+ * plain "2026-01-01" parses as UTC midnight, which is the previous day west
+ * of Greenwich and would show the wrong date.
+ */
+export function formatDateDisplay(value: unknown, locale?: string): string {
+  const day = datePart(value);
+  if (!day) return "";
+  const [year, month, dayOfMonth] = day.split("-").map(Number);
+  if (!year || !month || !dayOfMonth) return "";
+  const formatted = `${MONTHS[month - 1]} ${dayOfMonth} ${year}`;
+  const time = formatTime(value, locale);
+  return time ? `${formatted}, ${time}` : formatted;
+}
+
 /** Human-readable time for chips and cells; empty for all-day values. */
 export function formatTime(value: unknown, locale?: string): string {
   if (!hasTime(value)) return "";

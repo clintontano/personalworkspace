@@ -14,6 +14,7 @@ import {
 import { fetchRelationOptions } from "@/lib/db/data";
 import {
   datePart,
+  formatDateDisplay,
   fromLocalInput,
   hasTime,
   toLocalInput,
@@ -82,6 +83,14 @@ export function PropertyCell({
  * A date value is all-day ("2026-08-29") or timed (full ISO). The clock
  * button switches between the two; the input type follows the value.
  */
+/**
+ * Dates read as "Jan 1 2026" rather than 01/01/2026.
+ *
+ * A native date input always renders in the browser's numeric locale format
+ * and cannot be restyled, so the cell shows formatted text at rest and swaps
+ * to the native input while editing — which keeps the built-in calendar
+ * picker instead of hand-rolling one.
+ */
 function DateCell({
   value,
   onChange,
@@ -92,28 +101,45 @@ function DateCell({
   className?: string;
 }) {
   const timed = hasTime(value);
+  const [editing, setEditing] = useState(false);
 
   return (
     <div className={cn("group/date flex items-center gap-1 px-2 py-1", className)}>
-      {timed ? (
-        <input
-          type="datetime-local"
-          aria-label="Date and time"
-          value={toLocalInput(value)}
-          onChange={(e) => onChange(fromLocalInput(e.target.value))}
-          className="w-full bg-transparent text-sm outline-none"
-        />
+      {editing ? (
+        timed ? (
+          <input
+            type="datetime-local"
+            aria-label="Date and time"
+            autoFocus
+            value={toLocalInput(value)}
+            onChange={(e) => onChange(fromLocalInput(e.target.value))}
+            onBlur={() => setEditing(false)}
+            className="w-full bg-transparent text-sm outline-none"
+          />
+        ) : (
+          <input
+            type="date"
+            aria-label="Date"
+            autoFocus
+            value={datePart(value) ?? ""}
+            onChange={(e) => onChange(e.target.value === "" ? null : e.target.value)}
+            onBlur={() => setEditing(false)}
+            className="w-full bg-transparent text-sm outline-none"
+          />
+        )
       ) : (
-        <input
-          type="date"
-          aria-label="Date"
-          value={datePart(value) ?? ""}
-          onChange={(e) => onChange(e.target.value === "" ? null : e.target.value)}
+        <button
+          type="button"
+          aria-label={value ? `Change date, currently ${formatDateDisplay(value)}` : "Set date"}
+          data-date-value={value ? String(value) : ""}
+          onClick={() => setEditing(true)}
           className={cn(
-            "w-full bg-transparent text-sm outline-none",
-            !value && "text-muted-foreground",
+            "w-full truncate bg-transparent text-left text-sm outline-none",
+            !value && "text-muted-foreground/50",
           )}
-        />
+        >
+          {value ? formatDateDisplay(value) : "Empty"}
+        </button>
       )}
       {value ? (
         <button

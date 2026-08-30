@@ -270,6 +270,12 @@ completeness; the data must outlive the app (markdown/JSON export from Phase 2).
   `http://localhost:3000/api/google/callback`.
 - `google_connections` holds tokens per (user, kind); RLS is owner-only.
   Refresh tokens arrive only on first consent — re-connects keep the stored one.
+- Dates display as "Jan 1 2026" (`formatDateDisplay`). A native date input
+  always renders the browser's numeric locale format and cannot be restyled,
+  so cells show formatted text at rest and swap to the native input while
+  editing, which keeps the built-in calendar picker. All-day values are
+  formatted from their string parts, never through `new Date`, which would
+  read them as UTC midnight and show the previous day west of Greenwich.
 - **Date values carry their own precision** (`src/lib/db/date-value.ts`): a
   plain `2026-08-29` is all-day, a full ISO string is timed. No schema change
   was needed — existing all-day values keep working. Sorting compares

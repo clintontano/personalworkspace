@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   datePart,
+  formatDateDisplay,
   formatTime,
   fromLocalInput,
   hasTime,
@@ -101,5 +102,33 @@ describe("normalizeDateValue", () => {
     expect(normalizeDateValue("")).toBeNull();
     expect(normalizeDateValue("hello")).toBeNull();
     expect(normalizeDateValue(null)).toBeNull();
+  });
+});
+
+describe("formatDateDisplay", () => {
+  it("writes an all-day date as month name, day and year", () => {
+    expect(formatDateDisplay("2026-01-01")).toBe("Jan 1 2026");
+    expect(formatDateDisplay("2026-12-25")).toBe("Dec 25 2026");
+  });
+
+  it("does not zero-pad the day", () => {
+    expect(formatDateDisplay("2026-03-05")).toBe("Mar 5 2026");
+  });
+
+  it("appends the time when one is set", () => {
+    const timed = fromLocalInput("2026-01-01T14:30")!;
+    expect(formatDateDisplay(timed, "en-US")).toMatch(/^Jan 1 2026, .*2:30/);
+  });
+
+  it("shows the stored day for an all-day value regardless of timezone", () => {
+    // parsing "2026-01-01" as a Date gives UTC midnight, which is 31 Dec
+    // anywhere west of Greenwich — the formatter must not do that
+    expect(formatDateDisplay("2026-01-01")).toBe("Jan 1 2026");
+  });
+
+  it("is empty for missing or malformed values", () => {
+    expect(formatDateDisplay(null)).toBe("");
+    expect(formatDateDisplay("")).toBe("");
+    expect(formatDateDisplay("nonsense")).toBe("");
   });
 });
