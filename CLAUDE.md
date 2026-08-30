@@ -70,8 +70,11 @@ completeness; the data must outlive the app (markdown/JSON export from Phase 2).
   rows fetched by database_id. At personal scale this beats pushing dynamic
   jsonb predicates through PostgREST; revisit only on measured slowness.
 - **E2E**: auth once via `e2e/auth.setup.ts` (session state reused across runs
-  to dodge auth rate limits); specs self-clean; `npm run clean:e2e` removes
-  artifacts of crashed runs.
+  to dodge auth rate limits). **Specs create their own fixtures**
+  (`e2e/fixtures.ts`, service role) rather than navigating to seeded titles —
+  renaming or archiving a workspace page used to break eight unrelated specs.
+  Fixtures are named with the `E2E~` prefix and removed in a `finally`;
+  `npm run clean:e2e` sweeps what a crashed run leaves behind.
 - Playwright e2e reuses an already-running dev server on :3000 (Next 16
   allows one dev server per project).
 

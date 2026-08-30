@@ -1,24 +1,45 @@
 import { expect, test } from "@playwright/test";
+import {
+  createFixtureDatabase,
+  deleteFixturePage,
+  type FixtureDatabase,
+} from "./fixtures";
 import { openApp } from "./helpers";
 
 const rowTitle = (title: string) => `[data-row-title="${title}"]`;
 
-// Phase 2 happy path: table renders seeded rows, add a row, open it as a page.
+// Phase 2 happy path. The database is created per-spec rather than borrowed
+// from the seed, so renaming or archiving workspace pages cannot break these.
+let db: FixtureDatabase;
+
+test.beforeEach(async () => {
+  db = await createFixtureDatabase({
+    label: "tasks",
+    rows: [
+      { title: "Pay rent", status: "todo" },
+      { title: "Buy groceries", status: "todo" },
+      { title: "Review Phase 2", status: "doing" },
+    ],
+  });
+});
+
+test.afterEach(async () => {
+  await deleteFixturePage(db.databaseId);
+});
+
 test("tasks table renders, adds a row, opens row as page", async ({ page }) => {
   await openApp(page);
-
-  await page.locator("aside").getByText("Tasks", { exact: true }).click();
-  await expect(page.getByTestId("page-title")).toHaveValue("Tasks");
+  await page.goto(`/app/p/${db.databaseId}`);
+  await expect(page.getByTestId("page-title")).toHaveValue(db.title);
   await expect(page.locator(rowTitle("Pay rent"))).toBeVisible();
   await expect(page.getByRole("columnheader", { name: "Status" })).toBeVisible();
 
   // add a row inline. Target the new row by its empty title marker rather
-  // than by position, so a slow render cannot rename a seeded row.
+  // than by position, so a slow render cannot rename an existing row.
   const before = await page.locator("[data-row-title]").count();
   await page.getByTestId("add-row").click();
   await expect(page.locator("[data-row-title]")).toHaveCount(before + 1);
   const newTitle = `Task ${Date.now()}`;
-  // new rows are appended, so the last blank title is the one just created
   const blank = page.locator('[data-row-title=""]').last();
   await blank.fill(newTitle);
   await blank.press("Enter");
@@ -34,18 +55,11 @@ test("tasks table renders, adds a row, opens row as page", async ({ page }) => {
   await row.getByLabel("Open row").click();
   await expect(page.getByTestId("properties-panel")).toBeVisible();
   await expect(page.getByTestId("page-title")).toHaveValue(newTitle);
-
-  // clean up so repeated runs do not accumulate rows
-  await page.goBack();
-  const created = page.locator("tr", { has: page.locator(rowTitle(newTitle)) });
-  await created.hover();
-  await created.getByLabel("Delete row").click();
-  await expect(page.locator(rowTitle(newTitle))).toHaveCount(0);
 });
 
 test("filter and sort narrow the table", async ({ page }) => {
   await openApp(page);
-  await page.locator("aside").getByText("Tasks", { exact: true }).click();
+  await page.goto(`/app/p/${db.databaseId}`);
   await expect(page.locator(rowTitle("Pay rent"))).toBeVisible();
 
   await page.getByRole("button", { name: /^Filter/ }).click();
@@ -59,7 +73,7 @@ test("filter and sort narrow the table", async ({ page }) => {
 
 test("board view shows status columns", async ({ page }) => {
   await openApp(page);
-  await page.locator("aside").getByText("Tasks", { exact: true }).click();
+  await page.goto(`/app/p/${db.databaseId}`);
   await page.getByRole("button", { name: "Board" }).click();
   await expect(page.getByText("In progress").first()).toBeVisible();
   await expect(page.getByText("Review Phase 2")).toBeVisible();

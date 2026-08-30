@@ -106,11 +106,26 @@ export function BlockEditor({
       },
     };
 
-    return filterSuggestionItems(
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      [...getDefaultReactSlashMenuItems(editor as any), insertDatabase],
-      query,
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const defaults = getDefaultReactSlashMenuItems(editor as any);
+
+    // The menu renders one section per run of same-group items, keyed by
+    // group name. Appending to the end would make "Basic blocks" appear
+    // twice and collide on that key, so the item goes next to its group.
+    const lastOfGroup = defaults.reduce(
+      (found, item, index) => (item.group === insertDatabase.group ? index : found),
+      -1,
     );
+    const items =
+      lastOfGroup === -1
+        ? [...defaults, insertDatabase]
+        : [
+            ...defaults.slice(0, lastOfGroup + 1),
+            insertDatabase,
+            ...defaults.slice(lastOfGroup + 1),
+          ];
+
+    return filterSuggestionItems(items, query);
   };
 
   useEffect(() => {

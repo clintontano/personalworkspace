@@ -21,7 +21,9 @@ async function main() {
   const { data: junk, error } = await admin
     .from("pages")
     .select("id, title")
-    .or("title.like.E2E %,title.like.Task 17%,title.like.Form row %,title.like.MCP smoke%");
+    .or(
+      "title.like.E2E~%,title.like.E2E %,title.like.Task 17%,title.like.Form row %,title.like.MCP smoke%",
+    );
   if (error) throw error;
 
   for (const page of junk ?? []) {
@@ -47,6 +49,17 @@ async function main() {
   for (const site of sites ?? []) {
     await admin.from("sites").delete().eq("id", site.id);
     console.log(`removed site: ${site.slug}`);
+    removed++;
+  }
+
+  // Fixture automations carry the same prefix as fixture pages.
+  const { data: rules } = await admin
+    .from("automations")
+    .select("id, name")
+    .like("name", "E2E~%");
+  for (const rule of rules ?? []) {
+    await admin.from("automations").delete().eq("id", rule.id);
+    console.log(`removed automation: ${rule.name}`);
     removed++;
   }
 

@@ -1,9 +1,14 @@
 import { expect, test } from "@playwright/test";
+import { createFixturePage, deleteFixturePage } from "./fixtures";
 import { openApp } from "./helpers";
 
 // Dark mode: the choice applies immediately, survives a reload (no flash of
 // the wrong theme), and reaches the block editor.
 test("theme choice applies and persists", async ({ page }) => {
+  const fixture = await createFixturePage({
+    label: "theme",
+    blocks: [{ text: "Theme fixture body" }],
+  });
   await openApp(page);
 
   const html = page.locator("html");
@@ -18,7 +23,7 @@ test("theme choice applies and persists", async ({ page }) => {
   );
 
   // the editor follows the app theme rather than staying light
-  await page.locator("aside").getByText("Welcome", { exact: true }).click();
+  await page.goto(`/app/p/${fixture.pageId}`);
   await expect(page.locator(".bn-container")).toHaveClass(/dark/);
 
   await page.getByRole("radio", { name: "Light" }).click();
@@ -27,6 +32,8 @@ test("theme choice applies and persists", async ({ page }) => {
 
   // back to following the OS, so the suite leaves no sticky preference
   await page.getByRole("radio", { name: "System" }).click();
+
+  await deleteFixturePage(fixture.pageId);
 });
 
 test("published pages render in the visitor's theme", async ({ browser }) => {

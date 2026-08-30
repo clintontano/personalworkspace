@@ -1,4 +1,5 @@
 import { expect, test } from "@playwright/test";
+import { createFixturePage, deleteFixturePage } from "./fixtures";
 import { openApp } from "./helpers";
 
 // Phase 1 happy path: create a page, write a block, survive a reload.
@@ -31,9 +32,21 @@ test("create a page, edit blocks, content persists after reload", async ({ page 
   await expect(sidebarRow).toHaveCount(0, { timeout: 10_000 });
 });
 
-test("seeded Welcome page renders its blocks", async ({ page }) => {
-  await openApp(page);
-  await page.locator("aside").getByText("Welcome", { exact: true }).click();
-  await expect(page.getByText("Welcome to your workspace")).toBeVisible();
-  await expect(page.getByText("Type / for the slash menu")).toBeVisible();
+test("a page renders its stored blocks", async ({ page }) => {
+  // its own page, so archiving or renaming workspace pages cannot break this
+  const fixture = await createFixturePage({
+    label: "blocks",
+    blocks: [
+      { text: "Welcome to your workspace", heading: true },
+      { text: "Type / for the slash menu" },
+    ],
+  });
+  try {
+    await openApp(page);
+    await page.goto(`/app/p/${fixture.pageId}`);
+    await expect(page.getByText("Welcome to your workspace")).toBeVisible();
+    await expect(page.getByText("Type / for the slash menu")).toBeVisible();
+  } finally {
+    await deleteFixturePage(fixture.pageId);
+  }
 });

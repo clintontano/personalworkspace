@@ -1,4 +1,5 @@
 import { expect, test } from "@playwright/test";
+import { deleteFixturePage } from "./fixtures";
 import { openApp } from "./helpers";
 
 // Inline databases: a database created from the slash menu lives inside the
@@ -9,6 +10,7 @@ test("insert an inline database from the slash menu and reload", async ({ page }
   await page.getByRole("button", { name: "New page" }).click();
   await expect(page).toHaveURL(/\/app\/p\//);
   const pageUrl = page.url();
+  const hostPageId = pageUrl.split("/app/p/")[1];
 
   const title = `E2E inline ${Date.now()}`;
   await page.getByTestId("page-title").fill(title);
@@ -44,4 +46,7 @@ test("insert an inline database from the slash menu and reload", async ({ page }
   await expect(
     page.getByTestId("inline-database").locator("[data-row-title]"),
   ).toHaveCount(1, { timeout: 20_000 });
+
+  // the host page and the database nested inside it
+  await deleteFixturePage(hostPageId);
 });
