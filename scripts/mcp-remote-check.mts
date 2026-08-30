@@ -99,6 +99,33 @@ const { data: signIn, error: signInError } = await supabase.auth.signInWithPassw
 });
 if (signInError) throw signInError;
 
+/**
+ * One authorization round trip. Each check needs its own code: a failed PKCE
+ * attempt deliberately burns the code, since OAuth 2.1 treats a code whose
+ * verification fails as compromised.
+ */
+async function authorizeOnce() {
+  const verifier = b64url(randomBytes(32));
+  const codeChallenge = b64url(createHash("sha256").update(verifier).digest());
+  const url = new URL(asm.authorization_endpoint);
+  url.searchParams.set("client_id", registration.client_id);
+  url.searchParams.set("redirect_uri", redirectUri);
+  url.searchParams.set("response_type", "code");
+  url.searchParams.set("code_challenge", codeChallenge);
+  url.searchParams.set("code_challenge_method", "S256");
+  url.searchParams.set("state", "xyz");
+  url.searchParams.set("resource", `${base}/api/mcp`);
+  const response = await fetch(url, { redirect: "manual", headers: { cookie } });
+  const location = response.headers.get("location") ?? "";
+  return {
+    verifier,
+    code: new URL(location, base).searchParams.get("code"),
+    status: response.status,
+    location,
+    url,
+  };
+}
+
 const verifier = b64url(randomBytes(32));
 const codeChallenge = b64url(createHash("sha256").update(verifier).digest());
 
@@ -117,22 +144,15 @@ const cookie = `sb-${projectRef}-auth-token=base64-${Buffer.from(
   decodeURIComponent(cookieValue),
 ).toString("base64")}`;
 
-const authorizeUrl = new URL(asm.authorization_endpoint);
-authorizeUrl.searchParams.set("client_id", registration.client_id);
-authorizeUrl.searchParams.set("redirect_uri", redirectUri);
-authorizeUrl.searchParams.set("response_type", "code");
-authorizeUrl.searchParams.set("code_challenge", codeChallenge);
-authorizeUrl.searchParams.set("code_challenge_method", "S256");
-authorizeUrl.searchParams.set("state", "xyz");
-authorizeUrl.searchParams.set("resource", `${base}/api/mcp`);
-
-const authorized = await fetch(authorizeUrl, { redirect: "manual", headers: { cookie } });
-const location = authorized.headers.get("location") ?? "";
-const code = new URL(location, base).searchParams.get("code");
-check("authorize returns a code to the registered redirect", Boolean(code), location.slice(0, 70));
+const first = await authorizeOnce();
+check(
+  "authorize returns a code to the registered redirect",
+  Boolean(first.code),
+  first.location.slice(0, 70),
+);
 
 // A mismatched redirect_uri must never be redirected to.
-const tampered = new URL(authorizeUrl);
+const tampered = new URL(first.url);
 tampered.searchParams.set("redirect_uri", "https://evil.example.com/cb");
 const tamperedResponse = await fetch(tampered, { redirect: "manual", headers: { cookie } });
 check(
@@ -151,20 +171,35 @@ async function exchange(body: Record<string, string>) {
   });
 }
 
+// its own code, because a failed attempt burns it
 const wrongVerifier = await exchange({
   grant_type: "authorization_code",
   client_id: registration.client_id,
-  code: code!,
+  code: first.code!,
   code_verifier: b64url(randomBytes(32)),
   redirect_uri: redirectUri,
 });
 check("token endpoint rejects a bad PKCE verifier", wrongVerifier.status === 400);
 
+const burned = await exchange({
+  grant_type: "authorization_code",
+  client_id: registration.client_id,
+  code: first.code!,
+  code_verifier: first.verifier,
+  redirect_uri: redirectUri,
+});
+check(
+  "a code whose verification failed is treated as compromised",
+  burned.status === 400,
+  String(burned.status),
+);
+
+const second = await authorizeOnce();
 const tokenResponse = await exchange({
   grant_type: "authorization_code",
   client_id: registration.client_id,
-  code: code!,
-  code_verifier: verifier,
+  code: second.code!,
+  code_verifier: second.verifier,
   redirect_uri: redirectUri,
 });
 const tokens = await tokenResponse.json();
@@ -173,11 +208,29 @@ check("token endpoint issues an access token", Boolean(tokens.access_token));
 const replay = await exchange({
   grant_type: "authorization_code",
   client_id: registration.client_id,
-  code: code!,
-  code_verifier: verifier,
+  code: second.code!,
+  code_verifier: second.verifier,
   redirect_uri: redirectUri,
 });
 check("an authorization code cannot be replayed", replay.status === 400);
+
+const refreshed = await exchange({
+  grant_type: "refresh_token",
+  client_id: registration.client_id,
+  refresh_token: tokens.refresh_token,
+});
+const rotated = await refreshed.json();
+check(
+  "refresh rotates to a new token pair",
+  Boolean(rotated.access_token) && rotated.refresh_token !== tokens.refresh_token,
+);
+
+const reusedRefresh = await exchange({
+  grant_type: "refresh_token",
+  client_id: registration.client_id,
+  refresh_token: tokens.refresh_token,
+});
+check("the old refresh token is revoked after rotation", reusedRefresh.status === 400);
 
 // --------------------------------------------------------------- MCP calls
 
@@ -187,8 +240,10 @@ const fixture = await createFixtureDatabase({
 });
 
 try {
+  // the rotated token, since rotation revokes the grant the first one came
+  // from — this also proves a refreshed token actually works
   const transport = new StreamableHTTPClientTransport(new URL(`${base}/api/mcp`), {
-    requestInit: { headers: { authorization: `Bearer ${tokens.access_token}` } },
+    requestInit: { headers: { authorization: `Bearer ${rotated.access_token}` } },
   });
   const client = new Client({ name: "remote-check", version: "1.0.0" });
   await client.connect(transport);

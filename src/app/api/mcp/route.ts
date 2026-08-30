@@ -59,15 +59,14 @@ async function handle(request: NextRequest): Promise<Response> {
     // Stateless: each request carries its own auth and builds its own server,
     // which is what a serverless deployment can actually guarantee.
     sessionIdGenerator: undefined,
+    // Return a complete JSON body rather than opening an SSE stream. A
+    // serverless function cannot keep a stream alive between invocations, and
+    // closing the transport to release it truncated the response.
+    enableJsonResponse: true,
   });
   await server.connect(transport);
 
-  try {
-    return await transport.handleRequest(request);
-  } finally {
-    // Release the per-request server once the response is produced.
-    void transport.close();
-  }
+  return transport.handleRequest(request);
 }
 
 /** A Supabase client acting as the user who authorized this token. */
