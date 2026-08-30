@@ -15,7 +15,8 @@
     "format": "prettier --write src scripts e2e",
     "clean:e2e": "tsx scripts/clean-e2e.ts",
     "mcp": "tsx mcp/server.mts",
-    "mcp:check": "tsx scripts/mcp-smoke.mts"
+    "mcp:check": "tsx scripts/mcp-smoke.mts",
+    "mcp:remote": "tsx scripts/mcp-remote-check.mts"
   },
   "dependencies": {
     "@blocknote/core": "^0.54.0",

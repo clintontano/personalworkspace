@@ -13,6 +13,7 @@ import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { StdioClientTransport } from "@modelcontextprotocol/sdk/client/stdio.js";
 import { createClient } from "@supabase/supabase-js";
 import { config } from "dotenv";
+import { createFixtureDatabase, deleteFixturePage } from "../e2e/fixtures";
 
 const repoRoot = path.join(path.dirname(fileURLToPath(import.meta.url)), "..");
 config({ path: path.join(repoRoot, ".env.local"), quiet: true });
@@ -41,6 +42,13 @@ async function call(name: string, args: Record<string, unknown> = {}) {
 
 const createdPageIds: string[] = [];
 
+// Its own database, rather than assuming a seeded one still exists under a
+// particular name — renaming a workspace page used to break this check.
+const fixture = await createFixtureDatabase({
+  label: "mcp-smoke",
+  rows: [{ title: "Smoke todo", status: "todo" }],
+});
+
 try {
   const { tools } = await client.listTools();
   const expected = [
@@ -51,11 +59,13 @@ try {
   check("all tools exposed", expected.every((t) => names.includes(t)), names.join(", "));
 
   const databases = await call("list_databases");
-  const tasks = databases.find((d: { title: string }) => d.title === "Tasks");
-  check("list_databases finds Tasks", Boolean(tasks));
+  const tasks = databases.find(
+    (d: { databaseId: string }) => d.databaseId === fixture.databaseId,
+  );
+  check("list_databases finds the fixture database", Boolean(tasks));
 
   const todo = await call("query_database", {
-    database_id: tasks.databaseId,
+    database_id: fixture.databaseId,
     filter: { combinator: "and", conditions: [{ property: "Status", op: "eq", value: "To do" }] },
   });
   check(
@@ -65,9 +75,9 @@ try {
   );
 
   const row = await call("create_row", {
-    database_id: tasks.databaseId,
+    database_id: fixture.databaseId,
     title: "MCP smoke row",
-    properties: { Status: "In progress", Tags: ["Work"], Due: "2026-09-15" },
+    properties: { Status: "In progress", Due: "2026-09-15" },
     markdown: "## Notes\n\nCreated by **MCP**.\n\n- [ ] round trip",
   });
   createdPageIds.push(row.pageId);
@@ -75,9 +85,7 @@ try {
   const read = await call("read_page", { page_id: row.pageId });
   check(
     "create_row coerces property names to stored values",
-    read.properties.Status === "In progress" &&
-      Array.isArray(read.properties.Tags) &&
-      read.properties.Tags[0] === "Work",
+    read.properties.Status === "In progress" && read.properties.Due === "2026-09-15",
     JSON.stringify(read.properties),
   );
   check(
@@ -120,6 +128,7 @@ try {
   check("unknown page returns a tool error, not a crash", failure.isError === true);
 } finally {
   await client.close();
+  await deleteFixturePage(fixture.databaseId);
 
   // Clean up through the service role so a failed run leaves nothing behind.
   if (createdPageIds.length > 0 && process.env.SUPABASE_SERVICE_ROLE_KEY) {

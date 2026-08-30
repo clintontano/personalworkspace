@@ -112,6 +112,32 @@ completeness; the data must outlive the app (markdown/JSON export from Phase 2).
   identical to the MCP path; the row body is the thread as markdown with a
   Gmail deep link.
 
+## Remote MCP server (OAuth)
+
+- `/api/mcp` is the Streamable HTTP endpoint; `mcp/server.mts` is the local
+  stdio one. Both register the same tools from `src/lib/mcp/tools.ts`, so the
+  two surfaces cannot drift.
+- Claude's custom-connector UI has **no field for a bearer token or custom
+  header** — only OAuth client id/secret — so a remote MCP server has to
+  speak OAuth 2.1 to be addable at all. The app is both the resource server
+  and the authorization server: `/.well-known/oauth-protected-resource`
+  (RFC 9728), `/.well-known/oauth-authorization-server` (RFC 8414),
+  `/api/oauth/register` (RFC 7591), `/api/oauth/authorize`, `/api/oauth/token`.
+- S256 PKCE only, exact redirect-URI matching, single-use codes, rotating
+  refresh tokens, and audience binding against this deployment's `/api/mcp`.
+  Tokens and codes are stored as sha256 hashes.
+- **It still runs under the user's RLS.** The authorize step captures the
+  signed-in user's Supabase refresh token with the grant, and `/api/mcp`
+  rebuilds *their* session per request — the service role is used only for
+  the OAuth tables, never for workspace data.
+- `npm run mcp:remote [baseUrl]` drives the whole flow against a running
+  deployment the way Claude does.
+- **The OAuth tables had to be created by hand** (`scripts/oauth_setup.sql`):
+  `supabase db push` recorded those migrations in the history without
+  committing their DDL, leaving the history claiming tables that did not
+  exist. If a push ever hangs and is killed, verify the schema rather than
+  trusting `migration list`.
+
 ## MCP server
 
 - `mcp/server.mts` (stdio). A project-scoped `.mcp.json` is committed, so
