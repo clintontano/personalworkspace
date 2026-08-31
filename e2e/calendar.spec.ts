@@ -1,24 +1,45 @@
 import { expect, test } from "@playwright/test";
+import { createFixtureDatabase, deleteFixturePage } from "./fixtures";
 import { openApp } from "./helpers";
 
-// Phase 3 happy path: the Events database opens on its calendar view with
-// seeded events placed on the grid, and clicking a day creates a row there.
-test("events calendar renders seeded events", async ({ page }) => {
-  await openApp(page);
-  await page.locator("aside").getByText("Events", { exact: true }).click();
+// Phase 3 happy path: a calendar view places rows on the grid by their date,
+// month navigation works, and clicking one opens its row page. The database
+// is a fixture so the spec does not depend on seeded rows still existing.
+test("calendar view places rows on the grid", async ({ page }) => {
+  // dates inside the current month, so the default view shows them
+  const now = new Date();
+  const day = (n: number) =>
+    `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-${String(n).padStart(2, "0")}`;
 
-  await expect(page.getByTestId("calendar-view")).toBeVisible();
-  await expect(page.getByText("Dentist")).toBeVisible();
-  await expect(page.getByText("Mom's birthday")).toBeVisible();
+  const db = await createFixtureDatabase({
+    label: "calendar",
+    calendar: true,
+    rows: [
+      { title: "Fixture dentist", status: "todo", due: day(10) },
+      { title: "Fixture birthday", status: "todo", due: day(20) },
+    ],
+  });
 
-  // month navigation works
-  await page.getByLabel("Next month").click();
-  await expect(page.getByText("Dentist")).toHaveCount(0);
-  await page.getByRole("button", { name: "Today" }).click();
-  await expect(page.getByText("Dentist")).toBeVisible();
+  try {
+    await openApp(page);
+    await page.goto(`/app/p/${db.databaseId}`);
+    await page.getByRole("button", { name: "Calendar" }).click();
 
-  // clicking an event opens its row page
-  await page.getByText("Dentist").click();
-  await expect(page.getByTestId("properties-panel")).toBeVisible();
-  await expect(page.getByTestId("page-title")).toHaveValue("Dentist");
+    await expect(page.getByTestId("calendar-view")).toBeVisible();
+    await expect(page.getByText("Fixture dentist")).toBeVisible();
+    await expect(page.getByText("Fixture birthday")).toBeVisible();
+
+    // month navigation moves off them and back
+    await page.getByLabel("Next month").click();
+    await expect(page.getByText("Fixture dentist")).toHaveCount(0);
+    await page.getByRole("button", { name: "Today" }).click();
+    await expect(page.getByText("Fixture dentist")).toBeVisible();
+
+    // clicking an event opens its row page
+    await page.getByText("Fixture dentist").click();
+    await expect(page.getByTestId("properties-panel")).toBeVisible();
+    await expect(page.getByTestId("page-title")).toHaveValue("Fixture dentist");
+  } finally {
+    await deleteFixturePage(db.databaseId);
+  }
 });

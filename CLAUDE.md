@@ -171,7 +171,12 @@ completeness; the data must outlive the app (markdown/JSON export from Phase 2).
   cannot call an edge function directly). The runner drains that queue and
   evaluates scheduled rules in the same pass.
 - The trigger sets `app.automation_run` so writes made *by* the runner do not
-  re-enqueue events — no feedback loops. `isNoopUpdate` also skips updates
+  re-enqueue events — no feedback loops.
+- `automation_events` needs an **update** policy, not just a read one: "Run
+  now" executes as the signed-in user, and RLS rejects a forbidden update by
+  changing zero rows rather than raising. Without it the runner silently
+  failed to set `processed_at`, reprocessed the same oldest batch forever and
+  the queue grew without bound. The runner now checks the update landed. `isNoopUpdate` also skips updates
   that would change nothing.
 - **Deviation from the original plan, deliberate**: the rule engine runs in
   the Next.js route `POST /api/automations/run`, not inside the edge function.
@@ -281,6 +286,10 @@ completeness; the data must outlive the app (markdown/JSON export from Phase 2).
   was needed — existing all-day values keep working. Sorting compares
   instants (UTC offsets do not sort lexicographically); filters stay
   day-level so "is on the 29th" matches any time that day.
+- A timed row becomes a **point in time** in Google Calendar, not a padded
+  block: a task at 2pm is at 2pm rather than occupying 2–3pm. Google accepts
+  an event whose end equals its start. Existing events keep their real
+  duration — the patch path reads it before writing.
 - Calendar sync (`POST /api/google/sync`) runs pull-then-push per call.
   Planning logic is pure and unit-tested (`src/lib/google/calendar-sync.ts`);
   the route only does I/O. Rows link to events via a reserved `_gcal` key in

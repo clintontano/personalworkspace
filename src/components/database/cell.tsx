@@ -146,9 +146,12 @@ function DateCell({
           type="button"
           aria-label={timed ? "Remove time" : "Add time"}
           title={timed ? "Remove time" : "Add time"}
-          onClick={() =>
-            onChange(timed ? datePart(value) : fromLocalInput(toLocalInput(value)))
-          }
+          onClick={() => {
+            onChange(timed ? datePart(value) : fromLocalInput(toLocalInput(value)));
+            // adding a time should let you set it straight away rather than
+            // leaving a default sitting there
+            if (!timed) setEditing(true);
+          }}
           className={cn(
             "shrink-0 rounded p-0.5 text-muted-foreground hover:bg-muted-foreground/20",
             !timed && "opacity-0 group-hover/date:opacity-100",

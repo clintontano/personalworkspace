@@ -214,6 +214,8 @@ export type FixtureDatabase = {
 export async function createFixtureDatabase(options: {
   label: string;
   rows?: { title: string; status?: string; due?: string }[];
+  /** add a calendar view over the date property */
+  calendar?: boolean;
 }): Promise<FixtureDatabase> {
   const ws = await workspaceId();
   const owner = await ownerId();
@@ -281,6 +283,18 @@ export async function createFixtureDatabase(options: {
         config: { groupBy: statusPropertyId } as unknown as Json,
         order_key: orderKey(1),
       },
+      ...(options.calendar
+        ? [
+            {
+              database_id: page.id,
+              workspace_id: ws,
+              name: "Calendar",
+              type: "calendar",
+              config: { dateProperty: duePropertyId } as unknown as Json,
+              order_key: orderKey(2),
+            },
+          ]
+        : []),
     ]);
   if (viewError) throw viewError;
 

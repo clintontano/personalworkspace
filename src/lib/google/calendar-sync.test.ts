@@ -137,12 +137,14 @@ describe("eventBody", () => {
     expect(eventBody("Renamed", null)).toEqual({ summary: "Renamed" });
   });
 
-  it("builds a timed event, defaulting to an hour", () => {
+  it("builds a timed event as a point in time, not a padded block", () => {
+    // a task due at 09:00 is due at 09:00; it does not occupy 09:00-10:00
     expect(eventBody("Standup", "2026-09-01T09:00:00Z")).toEqual({
       summary: "Standup",
       start: { dateTime: "2026-09-01T09:00:00.000Z" },
-      end: { dateTime: new Date(Date.parse("2026-09-01T09:00:00Z") + DEFAULT_EVENT_MS).toISOString() },
+      end: { dateTime: "2026-09-01T09:00:00.000Z" },
     });
+    expect(DEFAULT_EVENT_MS).toBe(0);
   });
 
   it("keeps an existing event's duration when one is known", () => {

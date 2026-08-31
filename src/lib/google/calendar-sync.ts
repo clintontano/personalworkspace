@@ -126,14 +126,22 @@ export function planPush(
   return actions;
 }
 
-export const DEFAULT_EVENT_MS = 60 * 60 * 1000;
+/**
+ * A timed row with no known duration becomes a point in time rather than a
+ * padded block: a task due at 2pm is due at 2pm, it does not occupy 2–3pm.
+ * Google accepts an event whose end equals its start and shows it as a single
+ * moment. Existing events keep their real duration — see eventDuration, which
+ * the patch path reads before writing.
+ */
+export const DEFAULT_EVENT_MS = 0;
 
 /**
  * Event body for an insert/patch.
  *
- * A value with a time produces a timed event (keeping the existing duration
- * where known); a plain day produces an all-day event with the exclusive end
- * date Google expects. A null value touches only the title, leaving the
+ * A value with a time produces a timed event: it keeps the event's existing
+ * duration when one is known, and is otherwise a point in time rather than an
+ * invented block. A plain day produces an all-day event with the exclusive
+ * end date Google expects. A null value touches only the title, leaving the
  * event's existing schedule alone.
  */
 export function eventBody(
