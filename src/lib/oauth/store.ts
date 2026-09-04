@@ -176,6 +176,28 @@ export async function issueTokens(args: {
   return { accessToken, refreshToken, expiresIn: ACCESS_TOKEN_TTL_SECONDS };
 }
 
+/**
+ * Store the refresh token Supabase handed back on the last refresh.
+ *
+ * Conditional on the value having changed, so two concurrent MCP requests
+ * that both refreshed do not clobber each other pointlessly. Returns whether
+ * this call was the one that wrote; callers treat false as "someone else got
+ * there first", not as an error.
+ */
+export async function updateSupabaseRefreshToken(
+  tokenId: string,
+  refreshToken: string,
+): Promise<boolean> {
+  const { data, error } = await admin()
+    .from("oauth_tokens")
+    .update({ supabase_refresh_token: refreshToken })
+    .eq("id", tokenId)
+    .neq("supabase_refresh_token", refreshToken)
+    .select("id");
+  if (error) throw error;
+  return Boolean(data && data.length > 0);
+}
+
 export async function findAccessToken(token: string): Promise<OAuthToken | null> {
   const { data } = await admin()
     .from("oauth_tokens")
@@ -206,11 +228,23 @@ export async function rotateRefreshToken(
     .update({ revoked_at: new Date().toISOString() })
     .eq("id", record.id);
 
+  // Re-read the Supabase refresh token rather than carrying the value
+  // captured above: an MCP request may have rotated and written it back since
+  // this row was selected, and copying the stale one forward would hand the
+  // new grant a dead token.
+  const { data: latest } = await admin()
+    .from("oauth_tokens")
+    .select("supabase_refresh_token")
+    .eq("id", record.id)
+    .maybeSingle();
+
   return issueTokens({
     clientId: record.client_id,
     userId: record.user_id,
     resource: record.resource,
     scope: record.scope,
-    supabaseRefreshToken: record.supabase_refresh_token,
+    supabaseRefreshToken:
+      (latest as { supabase_refresh_token?: string } | null)?.supabase_refresh_token ??
+      record.supabase_refresh_token,
   });
 }

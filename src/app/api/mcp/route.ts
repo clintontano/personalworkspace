@@ -5,7 +5,12 @@ import { NextResponse, type NextRequest } from "next/server";
 import type { Database } from "@/lib/database.types";
 import { registerWorkspaceTools } from "@/lib/mcp/tools";
 import { resourceMatches } from "@/lib/oauth/crypto";
-import { findAccessToken, oauthConfigured } from "@/lib/oauth/store";
+import { openUserSession } from "@/lib/oauth/session";
+import {
+  findAccessToken,
+  oauthConfigured,
+  updateSupabaseRefreshToken,
+} from "@/lib/oauth/store";
 
 // The MCP session is per-request; nothing is cached between invocations.
 export const dynamic = "force-dynamic";
@@ -47,7 +52,11 @@ async function handle(request: NextRequest): Promise<Response> {
     return unauthorized("Token was not issued for this resource", challenge);
   }
 
-  const supabase = await userClient(token.supabase_refresh_token);
+  // Supabase rotates the refresh token on use; openUserSession writes the new
+  // value back so the next request is not left holding a revoked one.
+  const supabase = await openUserSession(token, refreshUserSession, (id, next) =>
+    updateSupabaseRefreshToken(id, next),
+  );
   if (!supabase) {
     return unauthorized("The workspace session behind this token has expired", challenge);
   }
@@ -69,10 +78,17 @@ async function handle(request: NextRequest): Promise<Response> {
   return transport.handleRequest(request);
 }
 
-/** A Supabase client acting as the user who authorized this token. */
-async function userClient(
+/**
+ * A Supabase client acting as the user who authorized this token, plus the
+ * rotated refresh token to store.
+ *
+ * Deliberately the anon key: workspace reads and writes go through the user's
+ * own session so RLS still applies. The service role is used only for the
+ * OAuth tables.
+ */
+async function refreshUserSession(
   refreshToken: string,
-): Promise<SupabaseClient<Database> | null> {
+): Promise<{ client: SupabaseClient<Database>; refreshToken: string } | null> {
   const client = createClient<Database>(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
     process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
@@ -80,7 +96,7 @@ async function userClient(
   );
   const { data, error } = await client.auth.refreshSession({ refresh_token: refreshToken });
   if (error || !data.session) return null;
-  return client;
+  return { client, refreshToken: data.session.refresh_token };
 }
 
 function unauthorized(description: string, challenge: string) {

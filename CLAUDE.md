@@ -130,6 +130,14 @@ completeness; the data must outlive the app (markdown/JSON export from Phase 2).
   signed-in user's Supabase refresh token with the grant, and `/api/mcp`
   rebuilds *their* session per request — the service role is used only for
   the OAuth tables, never for workspace data.
+- **Supabase rotates that refresh token on every use** and revokes the old one
+  after a short reuse window, so the rotated value must be written back
+  (`openUserSession` + `updateSupabaseRefreshToken`). Discarding it left the
+  stored token dead within minutes and the connector fell to needs-auth. The
+  write-back is conditional and best-effort: concurrent requests both refresh,
+  and losing that race must not fail an otherwise valid request.
+  `rotateRefreshToken` re-reads the current value rather than copying forward
+  the one it captured, which would hand a new grant a dead token.
 - `npm run mcp:remote [baseUrl]` drives the whole flow against a running
   deployment the way Claude does.
 - **The OAuth tables had to be created by hand** (`scripts/oauth_setup.sql`):
