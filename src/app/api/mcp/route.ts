@@ -5,6 +5,7 @@ import { NextResponse, type NextRequest } from "next/server";
 import type { Database } from "@/lib/database.types";
 import { registerWorkspaceTools } from "@/lib/mcp/tools";
 import { resourceMatches } from "@/lib/oauth/crypto";
+import { canonicalOrigin } from "@/lib/oauth/origin";
 import { openUserSession } from "@/lib/oauth/session";
 import {
   findAccessToken,
@@ -32,7 +33,7 @@ async function handle(request: NextRequest): Promise<Response> {
     );
   }
 
-  const origin = request.nextUrl.origin;
+  const origin = canonicalOrigin(request.nextUrl.origin);
   const resourceMetadata = `${origin}/.well-known/oauth-protected-resource`;
   const challenge = `Bearer resource_metadata="${resourceMetadata}"`;
 

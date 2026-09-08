@@ -4,6 +4,7 @@ import {
   isRegisteredRedirect,
   resourceMatches,
 } from "@/lib/oauth/crypto";
+import { canonicalOrigin } from "@/lib/oauth/origin";
 import { createAuthorizationCode, getClient, oauthConfigured } from "@/lib/oauth/store";
 import { createClient } from "@/lib/supabase/server";
 
@@ -62,7 +63,7 @@ export async function GET(request: NextRequest) {
   }
 
   // Audience binding: only mint tokens for this deployment's MCP endpoint.
-  const expected = `${request.nextUrl.origin}/api/mcp`;
+  const expected = `${canonicalOrigin(request.nextUrl.origin)}/api/mcp`;
   if (resource && !resourceMatches(resource, expected)) {
     return fail("invalid_target", `This server only issues tokens for ${expected}.`);
   }
@@ -74,6 +75,7 @@ export async function GET(request: NextRequest) {
 
   if (!session) {
     // Sign in, then come back to this exact authorization request.
+    // the sign-in bounce stays on whichever host the user is browsing
     const login = new URL("/login", request.nextUrl.origin);
     login.searchParams.set("next", request.nextUrl.pathname + request.nextUrl.search);
     return NextResponse.redirect(login);

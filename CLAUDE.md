@@ -138,6 +138,12 @@ completeness; the data must outlive the app (markdown/JSON export from Phase 2).
   and losing that race must not fail an otherwise valid request.
   `rotateRefreshToken` re-reads the current value rather than copying forward
   the one it captured, which would hand a new grant a dead token.
+- **One canonical origin** (`src/lib/oauth/origin.ts`): every OAuth document
+  and the token audience name the same host, taken from
+  `OAUTH_ISSUER_ORIGIN`, else Vercel's `VERCEL_PROJECT_PRODUCTION_URL`, else
+  the request origin (correct locally). Deriving it per-request would let a
+  preview deployment mint grants bound to a hostname that disappears on the
+  next push, which reads as the connector losing its authorization.
 - `npm run mcp:remote [baseUrl]` drives the whole flow against a running
   deployment the way Claude does.
 - **The OAuth tables had to be created by hand** (`scripts/oauth_setup.sql`):

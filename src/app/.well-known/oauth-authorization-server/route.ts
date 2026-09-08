@@ -1,4 +1,5 @@
 import { NextResponse, type NextRequest } from "next/server";
+import { canonicalOrigin } from "@/lib/oauth/origin";
 
 /**
  * OAuth 2.0 Authorization Server Metadata (RFC 8414).
@@ -8,7 +9,9 @@ import { NextResponse, type NextRequest } from "next/server";
  * against a stolen code.
  */
 export function GET(request: NextRequest) {
-  const origin = request.nextUrl.origin;
+  // One stable origin, so a preview deploy cannot mint identity for a
+  // hostname that disappears on the next push.
+  const origin = canonicalOrigin(request.nextUrl.origin);
   return NextResponse.json(
     {
       issuer: origin,
