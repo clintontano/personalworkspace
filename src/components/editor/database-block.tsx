@@ -3,6 +3,7 @@
 import { BlockNoteSchema, defaultBlockSpecs } from "@blocknote/core";
 import { createReactBlockSpec } from "@blocknote/react";
 import { InlineDatabase } from "./inline-database";
+import { InlinePage } from "./inline-page";
 
 /**
  * A database embedded in a page.
@@ -36,11 +37,34 @@ export const databaseBlockSpec = createReactBlockSpec(
   }),
 );
 
+/**
+ * A sub-page linked inside a page.
+ *
+ * Like the database block, this stores only an id. The target is an ordinary
+ * page row, so it shows up in the sidebar tree, opens on its own, and is
+ * visible to the MCP server and export without special casing.
+ */
+export const pageBlockSpec = createReactBlockSpec(
+  {
+    type: "page",
+    content: "none",
+    propSchema: {
+      pageId: { default: "" },
+    },
+  },
+  {
+    render: ({ block }: { block: { props: { pageId: string } } }) => (
+      <InlinePage pageId={block.props.pageId} />
+    ),
+  },
+);
+
 export function createEditorSchema(workspaceId: string) {
   return BlockNoteSchema.create({
     blockSpecs: {
       ...defaultBlockSpecs,
       database: databaseBlockSpec({ workspaceId }),
+      page: pageBlockSpec(),
     },
   });
 }

@@ -34,7 +34,7 @@ export async function SitePage({ slug, pageId }: { slug: string; pageId?: string
         </Link>
       ) : null}
 
-      <h1 className="mb-6 text-4xl font-bold">
+      <h1 className="mb-6 text-2xl font-bold sm:text-4xl">
         {site.page.icon ? `${site.page.icon} ` : ""}
         {site.page.title || "Untitled"}
       </h1>

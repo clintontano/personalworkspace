@@ -108,6 +108,54 @@ export async function fetchBundleWith(
   };
 }
 
+/** A sub-page referenced by a `page` block, enough to render the link. */
+export type PageRef = {
+  pageId: string;
+  title: string;
+  icon: string | null;
+  isDatabase: boolean;
+};
+
+/** Page ids referenced by `page` blocks on a page. */
+export function pageIdsInBlocks(rows: { type: string; content: unknown }[]): string[] {
+  const ids: string[] = [];
+  for (const row of rows) {
+    if (row.type !== "page") continue;
+    const props = (row.content as { props?: Record<string, unknown> } | null)?.props;
+    const id = props?.pageId;
+    if (typeof id === "string" && id !== "") ids.push(id);
+  }
+  return [...new Set(ids)];
+}
+
+/**
+ * Titles and icons for linked sub-pages, fetched with the page so the links
+ * paint immediately. Archived or deleted targets are simply omitted; the
+ * block renders a "no longer exists" note for those.
+ */
+export async function fetchPageRefs(
+  supabase: SupabaseClient<Database>,
+  pageIds: string[],
+): Promise<PageRef[]> {
+  if (pageIds.length === 0) return [];
+  const { data } = await supabase
+    .from("pages")
+    .select("id, title, icon, databases(page_id)")
+    .in("id", pageIds)
+    .is("archived_at", null);
+  return ((data ?? []) as unknown as {
+    id: string;
+    title: string;
+    icon: string | null;
+    databases: unknown;
+  }[]).map((row) => ({
+    pageId: row.id,
+    title: row.title,
+    icon: row.icon,
+    isDatabase: row.databases !== null,
+  }));
+}
+
 /** Database ids referenced by `database` blocks on a page. */
 export function databaseIdsInBlocks(
   rows: { type: string; content: unknown }[],

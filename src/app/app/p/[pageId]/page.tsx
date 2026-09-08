@@ -2,7 +2,13 @@ import { notFound } from "next/navigation";
 import { DatabaseScreen } from "@/components/database/database-screen";
 import { PageView } from "@/components/editor/page-view";
 import type { BlockRowLike } from "@/lib/blocks/sync";
-import { databaseIdsInBlocks, fetchBundleWith, type DatabaseBundleData } from "@/lib/db/bundle";
+import {
+  databaseIdsInBlocks,
+  fetchBundleWith,
+  fetchPageRefs,
+  pageIdsInBlocks,
+  type DatabaseBundleData,
+} from "@/lib/db/bundle";
 import { toRow, type ViewConfig, type ViewRecord, type ViewType } from "@/lib/db/data";
 import type { Property, PropertyConfig, PropertyType, PropertyValue } from "@/lib/db/model";
 import { createClient } from "@/lib/supabase/server";
@@ -118,6 +124,9 @@ export default async function Page({
     await Promise.all(embeddedIds.map((id) => fetchBundleWith(supabase, id)))
   ).filter((b): b is DatabaseBundleData => b !== null);
 
+  // Same reasoning for linked sub-pages: their titles come with the page.
+  const inlinePages = await fetchPageRefs(supabase, pageIdsInBlocks(blocks ?? []));
+
   return (
     <PageView
       key={page.id}
@@ -125,6 +134,7 @@ export default async function Page({
       workspaceId={page.workspace_id}
       initialTitle={page.title}
       initialRows={(blocks ?? []) as BlockRowLike[]}
+      inlinePages={inlinePages}
       inlineDatabases={inlineDatabases}
       rowProperties={rowProperties}
       rowValues={rowValues}

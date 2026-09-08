@@ -1,5 +1,6 @@
 import { redirect } from "next/navigation";
 import { PageTree } from "@/components/sidebar/page-tree";
+import { SidebarShell } from "@/components/sidebar/sidebar-shell";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { Button } from "@/components/ui/button";
 import type { PageMeta } from "@/lib/pages";
@@ -48,9 +49,9 @@ export default async function AppLayout({
   }
 
   return (
-    <div className="flex h-screen">
-      <aside className="flex w-64 shrink-0 flex-col border-r bg-muted/30">
-        <div className="border-b p-4">
+    <div className="flex h-dvh">
+      <SidebarShell>
+        <div className="border-b p-4 pr-12 md:pr-4">
           <p data-testid="workspace-name" className="truncate font-semibold">
             {workspace ? `${workspace.icon ?? ""} ${workspace.name}`.trim() : "No workspace"}
           </p>
@@ -94,8 +95,10 @@ export default async function AppLayout({
             </Button>
           </form>
         </div>
-      </aside>
-      <main className="flex-1 overflow-y-auto">{children}</main>
+      </SidebarShell>
+      {/* min-w-0 lets wide children scroll inside instead of stretching the
+          page; pt-14 clears the fixed menu button on small screens. */}
+      <main className="min-w-0 flex-1 overflow-y-auto pt-14 md:pt-0">{children}</main>
     </div>
   );
 }

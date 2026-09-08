@@ -224,6 +224,30 @@ completeness; the data must outlive the app (markdown/JSON export from Phase 2).
 - Deleting the block leaves the database page in the tree, which is what
   Notion does; the data is not silently destroyed.
 
+## Inline pages
+
+- `/page` in the slash menu creates a real child page and inserts a `page`
+  block holding only its id — the same arrangement inline databases use, so
+  the target appears in the sidebar tree, opens on its own, and is reachable
+  from the MCP server and export with no special casing.
+- Titles are fetched **server-side** (`pageIdsInBlocks` + `fetchPageRefs`) and
+  seeded into the client cache, so links paint with the page.
+- The block reads through `use()` behind a `<Suspense>` boundary. Without the
+  boundary the first render suspends with nowhere to land inside the editor
+  and the block renders nothing at all.
+
+## Mobile
+
+- The sidebar is a permanent column at `md` and above, and a dismissible
+  drawer below it (`components/sidebar/sidebar-shell.tsx`): a fixed menu
+  button, a scrim, Escape to close, and an opaque background — the `bg-muted/30`
+  tint is only right when it sits beside content rather than over it.
+- It closes on link clicks rather than by watching the pathname, because
+  React Compiler forbids setting state synchronously in an effect.
+- Content padding and headings step down below `sm`; wide things (database
+  toolbar, tables, popovers) scroll or clamp inside their own container so the
+  page itself never scrolls sideways.
+
 ## Drag and drop
 
 - Native HTML5 drag throughout (board cards, table columns, sidebar pages) —

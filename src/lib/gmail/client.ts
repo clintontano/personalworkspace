@@ -7,6 +7,19 @@ const GMAIL = "https://gmail.googleapis.com/gmail/v1/users/me";
 
 export type GmailConnection = { id: string; workspaceId: string; email: string; accessToken: string };
 
+/**
+ * Google refused to refresh the stored grant — revoked, expired, or the
+ * client credentials changed. Distinct from "never connected", because the
+ * user has to reconnect rather than connect for the first time.
+ */
+export class GmailAuthError extends Error {
+  constructor(cause?: unknown) {
+    super("Gmail access has expired; reconnect the account");
+    this.name = "GmailAuthError";
+    this.cause = cause;
+  }
+}
+
 /** Load the user's Gmail connection, refreshing the access token if stale. */
 export async function gmailConnection(
   supabase: SupabaseClient<Database>,
@@ -22,7 +35,14 @@ export async function gmailConnection(
 
   let accessToken = connection.access_token;
   if (new Date(connection.token_expires_at).getTime() < Date.now() + 60_000) {
-    const refreshed = await refreshAccessToken(connection.refresh_token);
+    let refreshed;
+    try {
+      refreshed = await refreshAccessToken(connection.refresh_token);
+    } catch (error) {
+      // Surfacing this as a thrown 500 told the user nothing; the routes turn
+      // it into a 401 that says to reconnect.
+      throw new GmailAuthError(error);
+    }
     accessToken = refreshed.access_token;
     await supabase
       .from("google_connections")

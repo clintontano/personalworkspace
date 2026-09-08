@@ -103,7 +103,7 @@ export function AutomationsScreen({
   };
 
   return (
-    <div className="mx-auto max-w-3xl px-8 py-12">
+    <div className="mx-auto max-w-3xl px-4 py-8 sm:px-8 sm:py-12">
       <div className="mb-6 flex items-center justify-between">
         <h1 className="flex items-center gap-2 text-2xl font-bold">
           <Zap className="h-5 w-5" /> Automations

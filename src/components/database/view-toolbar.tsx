@@ -137,7 +137,7 @@ export function ViewToolbar({
             Filter{flatConditions.length > 0 ? ` (${flatConditions.length})` : ""}
           </Button>
         </PopoverTrigger>
-        <PopoverContent align="end" className="w-[420px] p-3">
+        <PopoverContent align="end" className="w-[min(420px,calc(100vw-2rem))] p-3">
           <div className="flex flex-col gap-2">
             {flatConditions.map((condition, i) => {
               const type = typeOf(condition.property, properties);

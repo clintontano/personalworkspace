@@ -1,5 +1,5 @@
 import { NextResponse, type NextRequest } from "next/server";
-import { gmailConnection, gmailFetch } from "@/lib/gmail/client";
+import { GmailAuthError, gmailConnection, gmailFetch } from "@/lib/gmail/client";
 import { loadInbox } from "@/lib/gmail/inbox";
 import { parseMessage, threadToMarkdown, type GmailMessage } from "@/lib/gmail/parse";
 import { createClient } from "@/lib/supabase/server";
@@ -15,7 +15,15 @@ export async function GET(request: NextRequest) {
   } = await supabase.auth.getUser();
   if (!user) return NextResponse.json({ error: "unauthorized" }, { status: 401 });
 
-  const connection = await gmailConnection(supabase, user.id);
+  let connection;
+  try {
+    connection = await gmailConnection(supabase, user.id);
+  } catch (error) {
+    if (error instanceof GmailAuthError) {
+      return NextResponse.json({ error: error.message }, { status: 401 });
+    }
+    throw error;
+  }
   if (!connection) return NextResponse.json({ error: "gmail not connected" }, { status: 404 });
 
   const threadId = request.nextUrl.searchParams.get("id");

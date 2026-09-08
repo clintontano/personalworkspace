@@ -3,7 +3,7 @@
 import dynamic from "next/dynamic";
 import { useCallback, useRef, useState } from "react";
 import type { BlockRowLike } from "@/lib/blocks/sync";
-import type { DatabaseBundleData } from "@/lib/db/bundle";
+import type { DatabaseBundleData, PageRef } from "@/lib/db/bundle";
 import { PropertiesPanel } from "@/components/database/properties-panel";
 import { ShareMenu } from "@/components/share/share-menu";
 import type { Property, PropertyValue } from "@/lib/db/model";
@@ -22,6 +22,7 @@ export function PageView({
   initialTitle,
   initialRows,
   inlineDatabases,
+  inlinePages,
   rowProperties,
   rowValues,
 }: {
@@ -30,6 +31,7 @@ export function PageView({
   initialTitle: string;
   initialRows: BlockRowLike[];
   inlineDatabases?: DatabaseBundleData[];
+  inlinePages?: PageRef[];
   rowProperties?: Property[] | null;
   rowValues?: Record<string, PropertyValue> | null;
 }) {
@@ -49,7 +51,7 @@ export function PageView({
   );
 
   return (
-    <div className="mx-auto flex h-full max-w-3xl flex-col px-8 py-10">
+    <div className="mx-auto flex h-full max-w-3xl flex-col px-4 py-6 sm:px-8 sm:py-10">
       <div className="mb-1 flex items-center justify-end gap-2">
         <span
           data-testid="save-state"
@@ -64,7 +66,7 @@ export function PageView({
         value={title}
         onChange={(e) => onTitleChange(e.target.value)}
         placeholder="Untitled"
-        className="mb-4 w-full bg-transparent text-4xl font-bold outline-none placeholder:text-muted-foreground/40"
+        className="mb-4 w-full bg-transparent text-2xl font-bold sm:text-4xl outline-none placeholder:text-muted-foreground/40"
       />
       {rowProperties && rowProperties.length > 0 ? (
         <PropertiesPanel
@@ -79,6 +81,7 @@ export function PageView({
           workspaceId={workspaceId}
           initialRows={initialRows}
           inlineDatabases={inlineDatabases}
+          inlinePages={inlinePages}
           onSaveStateChange={setSaveState}
         />
       </div>

@@ -36,7 +36,7 @@ export default async function MailPage() {
 
   if (!googleConfigured()) {
     return (
-      <div className="mx-auto max-w-2xl px-8 py-12">
+      <div className="mx-auto max-w-2xl px-4 py-8 sm:px-8 sm:py-12">
         <h1 className="mb-4 text-2xl font-bold">Mail</h1>
         <div className="rounded-lg border p-4 text-sm text-muted-foreground">
           <p className="mb-2">

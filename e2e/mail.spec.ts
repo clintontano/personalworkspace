@@ -29,9 +29,9 @@ test("mail screen reflects its connection state", async ({ page }) => {
 test("thread-to-row endpoint validates its input", async ({ page }) => {
   await openApp(page);
   const response = await page.request.post("/api/gmail/task", { data: {} });
-  // 400 when connected (missing ids), 404 when there is no connection —
-  // either way it refuses cleanly rather than throwing
-  expect([400, 404]).toContain(response.status());
+  // 400 when connected (missing ids), 404 when never connected, 401 when the
+  // stored grant has expired — never a 500
+  expect([400, 401, 404]).toContain(response.status());
   expect(await response.json()).toHaveProperty("error");
 });
 

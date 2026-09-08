@@ -11,12 +11,14 @@ import {
   type DefaultReactSuggestionItem,
 } from "@blocknote/react";
 import { BlockNoteView } from "@blocknote/shadcn";
-import { Table2 } from "lucide-react";
+import { FileText, Table2 } from "lucide-react";
 import { useEffect, useMemo, useRef } from "react";
 import { createEditorSchema } from "@/components/editor/database-block";
 import { seedInlineDatabases } from "@/components/editor/inline-database";
-import type { DatabaseBundleData } from "@/lib/db/bundle";
+import { seedPageRefs } from "@/components/editor/inline-page";
+import type { DatabaseBundleData, PageRef } from "@/lib/db/bundle";
 import { createDatabase } from "@/lib/db/data";
+import { createPage } from "@/lib/pages";
 import { useTheme } from "@/components/theme-provider";
 import {
   diffBlocks,
@@ -42,6 +44,7 @@ export function BlockEditor({
   workspaceId,
   initialRows,
   inlineDatabases = [],
+  inlinePages = [],
   onSaveStateChange,
 }: {
   pageId: string;
@@ -49,11 +52,14 @@ export function BlockEditor({
   initialRows: BlockRowLike[];
   /** Bundles for `database` blocks on this page, fetched server-side. */
   inlineDatabases?: DatabaseBundleData[];
+  /** Titles for `page` blocks on this page, fetched server-side. */
+  inlinePages?: PageRef[];
   onSaveStateChange?: (state: SaveState) => void;
 }) {
   // Runs before the editor renders its blocks, so embedded databases have
   // their data ready on first paint. Idempotent: seeding never overwrites.
   useMemo(() => seedInlineDatabases(inlineDatabases), [inlineDatabases]);
+  useMemo(() => seedPageRefs(inlinePages), [inlinePages]);
 
   // Mirror of what the database currently holds for this page.
   const dbRows = useRef(new Map(initialRows.map((r) => [r.id, r])));
@@ -106,6 +112,27 @@ export function BlockEditor({
       },
     };
 
+    const insertPage: DefaultReactSuggestionItem = {
+      title: "Page",
+      subtext: "A sub-page nested inside this one",
+      aliases: ["page", "subpage", "sub-page", "child"],
+      group: "Basic blocks",
+      icon: <FileText className="h-4 w-4" />,
+      onItemClick: () => {
+        void (async () => {
+          const newPageId = await createPage(workspaceId, pageId);
+          editor.insertBlocks(
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            [{ type: "page", props: { pageId: newPageId } } as any],
+            editor.getTextCursorPosition().block,
+            "after",
+          );
+          // The sidebar tree gains the new sub-page.
+          notifyPagesChanged(workspaceId);
+        })();
+      },
+    };
+
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const defaults = getDefaultReactSlashMenuItems(editor as any);
 
@@ -116,12 +143,13 @@ export function BlockEditor({
       (found, item, index) => (item.group === insertDatabase.group ? index : found),
       -1,
     );
+    const added = [insertPage, insertDatabase];
     const items =
       lastOfGroup === -1
-        ? [...defaults, insertDatabase]
+        ? [...defaults, ...added]
         : [
             ...defaults.slice(0, lastOfGroup + 1),
-            insertDatabase,
+            ...added,
             ...defaults.slice(lastOfGroup + 1),
           ];
 

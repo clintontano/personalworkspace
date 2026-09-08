@@ -77,7 +77,7 @@ export function MailScreen({
 
   if (!connected) {
     return (
-      <div className="mx-auto max-w-2xl px-8 py-12">
+      <div className="mx-auto max-w-2xl px-4 py-8 sm:px-8 sm:py-12">
         <h1 className="mb-4 flex items-center gap-2 text-2xl font-bold">
           <Mail className="h-5 w-5" /> Mail
         </h1>
@@ -149,7 +149,7 @@ export function MailScreen({
 
       <div className="flex-1 overflow-y-auto">
         {selected ? (
-          <div className="mx-auto max-w-2xl px-8 py-8">
+          <div className="mx-auto max-w-2xl px-4 py-6 sm:px-8 sm:py-8">
             <h1 className="mb-4 text-2xl font-bold">{selected.subject}</h1>
             <div className="mb-6 flex flex-wrap items-center gap-2 rounded-md border p-3 text-sm">
               <span className="text-muted-foreground">Turn into a row in</span>

@@ -207,10 +207,16 @@ export function DatabaseScreen({
     <div
       className={cn(
         "flex flex-col",
-        inline ? "w-full" : "mx-auto h-full max-w-5xl px-8 py-10",
+        inline ? "w-full" : "mx-auto h-full max-w-5xl px-4 py-6 sm:px-8 sm:py-10",
       )}
     >
-      <div className={cn("flex items-center gap-2", inline ? "mb-1" : "mb-4")}>
+      <div
+        className={cn(
+          // scrolls horizontally on a phone instead of stretching the page
+          "flex items-center gap-2 overflow-x-auto",
+          inline ? "mb-1" : "mb-4",
+        )}
+      >
         <input
           data-testid={inline ? "inline-database-title" : "page-title"}
           value={title}
@@ -218,7 +224,7 @@ export function DatabaseScreen({
           placeholder="Untitled database"
           className={cn(
             "w-full bg-transparent outline-none placeholder:text-muted-foreground/40",
-            inline ? "text-base font-semibold" : "text-4xl font-bold",
+            inline ? "text-base font-semibold" : "text-2xl font-bold sm:text-4xl",
           )}
         />
         {inline ? (
