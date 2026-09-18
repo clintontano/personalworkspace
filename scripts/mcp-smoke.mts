@@ -54,6 +54,8 @@ try {
   const expected = [
     "search", "read_page", "create_page", "append_blocks",
     "list_databases", "query_database", "create_row", "update_row_properties",
+    "delete_page", "restore_page", "list_trash", "clear_cells",
+    "delete_property", "delete_blocks",
   ];
   const names = tools.map((t) => t.name);
   check("all tools exposed", expected.every((t) => names.includes(t)), names.join(", "));
@@ -120,6 +122,139 @@ try {
 
   const found = await call("search", { query: "MCP smoke page" });
   check("search finds a freshly created page", found.some((f: { pageId: string }) => f.pageId === page.pageId));
+
+  // Destructive tools --------------------------------------------------------
+
+  await call("clear_cells", { page_id: row.pageId, properties: ["Due"] });
+  const cleared = await call("read_page", { page_id: row.pageId });
+  check(
+    "clear_cells empties the named property and leaves the others",
+    cleared.properties.Due === undefined && cleared.properties.Status === "Done",
+    JSON.stringify(cleared.properties),
+  );
+
+  const clearAgain = await call("clear_cells", { page_id: row.pageId, properties: ["Due"] });
+  check(
+    "clearing an already-empty cell is a no-op, not a write",
+    clearAgain.cleared.length === 0 && clearAgain.alreadyEmpty.includes("Due"),
+  );
+
+  const withIds = await call("read_page", { page_id: page.pageId, include_block_ids: true });
+  check(
+    "read_page lists block ids when asked",
+    Array.isArray(withIds.blocks) && withIds.blocks.length > 0,
+    `${withIds.blocks?.length} block(s)`,
+  );
+  const firstBlockId = withIds.blocks[0].blockId;
+  const blocksRemoved = await call("delete_blocks", {
+    page_id: page.pageId,
+    block_ids: [firstBlockId],
+  });
+  const afterBlocks = await call("read_page", { page_id: page.pageId, include_block_ids: true });
+  check(
+    "delete_blocks removes the named block and keeps the page",
+    blocksRemoved.removed >= 1 &&
+      !afterBlocks.blocks.some((b: { blockId: string }) => b.blockId === firstBlockId),
+  );
+
+  // A sub-page, to show archiving moves the whole subtree.
+  const child = await call("create_page", {
+    title: "MCP smoke child",
+    parent_page_id: page.pageId,
+  });
+  createdPageIds.push(child.pageId);
+
+  const archived = await call("delete_page", { page_id: page.pageId });
+  check(
+    "delete_page archives the page together with its sub-pages",
+    archived.mode === "archived" && archived.pageCount === 2,
+    JSON.stringify(archived.pages),
+  );
+
+  const searchedAfterArchive = await call("search", { query: "MCP smoke page" });
+  check(
+    "an archived page drops out of search",
+    !searchedAfterArchive.some((f: { pageId: string }) => f.pageId === page.pageId),
+  );
+
+  const trash = await call("list_trash");
+  const trashedRoot = trash.find((t: { pageId: string }) => t.pageId === page.pageId);
+  check("list_trash finds it, marked as the page to restore", trashedRoot?.isRoot === true);
+  check(
+    "the sub-page is in the trash but is not the restore target",
+    trash.some(
+      (t: { pageId: string; isRoot: boolean }) => t.pageId === child.pageId && t.isRoot === false,
+    ),
+  );
+
+  const restored = await call("restore_page", { page_id: page.pageId });
+  check(
+    "restore_page brings back the page and what was archived with it",
+    restored.restoredCount === 2 && restored.hiddenUnder === null,
+    JSON.stringify(restored),
+  );
+  const readAfterRestore = await call("read_page", { page_id: page.pageId });
+  check("the restored page reads normally again", readAfterRestore.pageId === page.pageId);
+
+  // A row is a page, so the same archive path applies — but the database's own
+  // read path filters archived rows out, which is what this checks.
+  const rowsBefore = await call("query_database", { database_id: fixture.databaseId });
+  await call("delete_page", { page_id: row.pageId });
+  const rowsAfter = await call("query_database", { database_id: fixture.databaseId });
+  check(
+    "archiving a row takes it out of the database",
+    rowsBefore.some((r: { pageId: string }) => r.pageId === row.pageId) &&
+      !rowsAfter.some((r: { pageId: string }) => r.pageId === row.pageId),
+    `${rowsBefore.length} -> ${rowsAfter.length} row(s)`,
+  );
+
+  await call("restore_page", { page_id: row.pageId });
+  const rowsRestored = await call("query_database", { database_id: fixture.databaseId });
+  const restoredRow = rowsRestored.find((r: { pageId: string }) => r.pageId === row.pageId);
+  check(
+    "restoring the row brings its property values back with it",
+    restoredRow?.properties.Status === "Done",
+    JSON.stringify(restoredRow?.properties),
+  );
+
+  // The fixture's board view groups by Status, so deleting it must prune that
+  // view — a view grouped by a property that no longer exists shows nothing.
+  const propertyDeleted = await call("delete_property", {
+    database_id: fixture.databaseId,
+    property: "Status",
+  });
+  check(
+    "delete_property prunes the views that referenced it",
+    propertyDeleted.viewsUpdated >= 1,
+    JSON.stringify(propertyDeleted),
+  );
+  const listedAfter = await call("list_databases");
+  const fixtureAfter = listedAfter.find(
+    (d: { databaseId: string }) => d.databaseId === fixture.databaseId,
+  );
+  check(
+    "the deleted property is gone from the database",
+    !fixtureAfter.properties.some((p: { name: string }) => p.name === "Status"),
+  );
+
+  const doomed = await call("create_page", { title: "MCP smoke permanent" });
+  createdPageIds.push(doomed.pageId);
+  const removed = await call("delete_page", { page_id: doomed.pageId, permanent: true });
+  const readDoomed = (await client.callTool({
+    name: "read_page",
+    arguments: { page_id: doomed.pageId },
+  })) as ToolResult;
+  check(
+    "a permanent delete removes the page outright",
+    removed.mode === "deleted" && readDoomed.isError === true,
+  );
+
+  await call("delete_page", { page_id: fixture.databaseId });
+  const listedAfterArchive = await call("list_databases");
+  check(
+    "an archived database stops being offered by list_databases",
+    !listedAfterArchive.some((d: { databaseId: string }) => d.databaseId === fixture.databaseId),
+  );
 
   const failure = (await client.callTool({
     name: "read_page",

@@ -10,7 +10,7 @@ import { normalizeDateValue } from "@/lib/db/date-value";
 import { evaluateFilter, type FilterGroup } from "@/lib/db/filters";
 import type { Property, PropertyConfig, PropertyType, PropertyValue, Row } from "@/lib/db/model";
 import { sortRows, type Sort } from "@/lib/db/sorts";
-import { blocksToMarkdown } from "@/lib/export/markdown";
+import { blocksToMarkdown, inlineToMarkdown } from "@/lib/export/markdown";
 import { markdownToBlocks, type ParsedBlock } from "@/lib/export/markdown-import";
 import { keyAfter } from "@/lib/order";
 
@@ -55,7 +55,11 @@ export async function search(supabase: Client, query: string, limit = 20) {
   }));
 }
 
-export async function readPage(supabase: Client, pageId: string) {
+export async function readPage(
+  supabase: Client,
+  pageId: string,
+  options: { includeBlockIds?: boolean } = {},
+) {
   const { data: page, error } = await supabase
     .from("pages")
     .select("id, title, icon, parent_page_id, created_at, updated_at")
@@ -107,6 +111,14 @@ export async function readPage(supabase: Client, pageId: string) {
     databaseId: rowRecord?.database_id ?? null,
     properties,
     markdown: blocksToMarkdown((blocks ?? []) as BlockRowLike[]),
+    // Opt-in, because delete_blocks needs ids and markdown does not carry them.
+    blocks: options.includeBlockIds
+      ? (blocks ?? []).map((b) => ({
+          blockId: b.id,
+          type: b.type,
+          text: inlineToMarkdown((b.content as { content?: unknown } | null)?.content).slice(0, 120),
+        }))
+      : undefined,
     children: (children ?? []).map((c) => ({ pageId: c.id, title: c.title || "Untitled", icon: c.icon })),
     updatedAt: page.updated_at,
   };
@@ -213,8 +225,12 @@ export async function appendBlocks(
 export async function listDatabases(supabase: Client, workspaceId: string) {
   const { data, error } = await supabase
     .from("databases")
-    .select("page_id, pages!databases_page_id_fkey(title, icon), database_properties(id, name, type, config, order_key)")
-    .eq("workspace_id", workspaceId);
+    .select(
+      "page_id, pages!databases_page_id_fkey!inner(title, icon, archived_at), database_properties(id, name, type, config, order_key)",
+    )
+    .eq("workspace_id", workspaceId)
+    // An archived database is out of the sidebar; do not keep offering it here.
+    .is("pages.archived_at", null);
   if (error) throw error;
   return (data ?? []).map((d) => {
     const page = d.pages as unknown as { title: string; icon: string | null };

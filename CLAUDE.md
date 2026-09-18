@@ -180,6 +180,45 @@ completeness; the data must outlive the app (markdown/JSON export from Phase 2).
   SQL privileges (`db push` and `db query --linked` both 403), so schema
   changes go through the dashboard SQL editor.
 
+## Deleting (MCP + app)
+
+- `delete_page` **archives by default** and `restore_page` brings it back:
+  an agent acting on a misread instruction should not be able to destroy a page
+  tree. `permanent: true` is the explicit opt out and cascades in SQL.
+- **Archiving moves the whole subtree.** The sidebar builds its tree from
+  `parent_page_id` over non-archived pages, so a child left behind is keyed
+  under a parent that is never rendered — it disappears from the tree while
+  search still returns it. `src/lib/archive.ts` is shared by the app's delete
+  button and the MCP tool rather than implemented twice.
+- Restore un-archives the pages carrying the target's **exact `archived_at`
+  timestamp**, which is how it tells the ones archived alongside it from a page
+  archived separately earlier. It reports `hiddenUnder` when the restored page
+  is back but still sits under an archived ancestor.
+- Archived pages are invisible to `search`, `read_page` and `list_databases`,
+  so `list_trash` is the only way to find them; its `isRoot` flag marks the
+  page a restore should target.
+- **Every delete is verified.** RLS refuses a forbidden delete or update by
+  matching zero rows rather than raising, so an unchecked call cannot tell
+  "done" from "refused".
+- `clear_cells` empties named property values and removes the key rather than
+  writing null (`isEmptyValue` treats the two alike). Nothing is written when
+  there is nothing to clear — every write to a row enqueues an automation
+  event. Reserved `_` keys are unreachable because only real properties resolve
+  by name.
+- `delete_property` prunes the property out of that database's views first
+  (`withoutProperty`, unit-tested). A view still filtering on a missing
+  property does not throw — it silently matches nothing, which reads as the
+  rows having gone with the column. The stored values stay in each row's jsonb,
+  where nothing reads them: stripping them would enqueue an automation event
+  per row, and a re-created property gets a fresh id.
+- A permanent delete prunes relation refs to the deleted pages (page-id arrays
+  in the properties jsonb, with no foreign key to do it). Only rows that
+  actually pointed at one are written, so the `row_updated` events that
+  produces are all honest.
+- `delete_blocks` scopes ids to the page they are claimed to be on, so a stale
+  id cannot remove a block from an unrelated page. `read_page` with
+  `include_block_ids` is where the ids come from.
+
 ## MCP server
 
 - `mcp/server.mts` (stdio). A project-scoped `.mcp.json` is committed, so

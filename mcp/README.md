@@ -73,6 +73,23 @@ npm run mcp:check
 | `query_database` | Rows with filters and sorts (properties by name or id) |
 | `create_row` | New row; values may use option names; markdown allowed |
 | `update_row_properties` | Update row values and title |
+| `read_page` with `include_block_ids` | Block ids, for `delete_blocks` |
 
 Property values are forgiving: `{"Status": "Done"}` resolves the property by
 name and the option by label, so Claude does not need to know internal ids.
+
+### Deleting
+
+| Tool | Purpose |
+| --- | --- |
+| `delete_page` | Archive a page and its sub-pages; `permanent: true` deletes outright |
+| `restore_page` | Un-archive a page and what was archived with it |
+| `list_trash` | Archived pages; `isRoot` marks the one to restore |
+| `clear_cells` | Empty named property values on a row, keeping the row |
+| `delete_property` | Delete a column, pruning it out of that database's views |
+| `delete_blocks` | Delete blocks from a page, or empty its body with `all` |
+
+Deleting a page **archives** it unless `permanent` is passed, so a misread
+instruction costs a `restore_page` rather than the page tree. A database's rows
+are its sub-pages, so a database goes with its contents either way. Permanent
+deletes, `delete_property` and `delete_blocks` cannot be undone.

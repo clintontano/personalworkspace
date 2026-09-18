@@ -4,6 +4,7 @@ import type { Json } from "@/lib/database.types";
 import type { FilterGroup } from "./filters";
 import type { Property, PropertyConfig, PropertyType, PropertyValue, Row } from "./model";
 import type { Sort } from "./sorts";
+import { pruneViewsOfProperty } from "./view-config";
 
 export type ViewType = "table" | "board" | "list" | "calendar";
 
@@ -239,6 +240,15 @@ export async function updateProperty(
 
 export async function deleteProperty(propertyId: string) {
   const supabase = createClient();
+  // A view still filtering or sorting on the property would match nothing,
+  // which reads as the rows having gone with the column.
+  const { data: property } = await supabase
+    .from("database_properties")
+    .select("database_id")
+    .eq("id", propertyId)
+    .maybeSingle();
+  if (property) await pruneViewsOfProperty(supabase, property.database_id, propertyId);
+
   const { error } = await supabase
     .from("database_properties")
     .delete()

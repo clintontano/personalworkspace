@@ -10,6 +10,14 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import { z } from "zod";
 import type { Database } from "@/lib/database.types";
 import * as api from "@/lib/mcp/api";
+import {
+  clearRowValues,
+  deleteBlocks,
+  deleteDatabaseProperty,
+  deletePage,
+  listArchivedPages,
+  restorePage,
+} from "@/lib/mcp/delete";
 
 export type ToolContext = {
   supabase: SupabaseClient<Database>;
@@ -85,9 +93,18 @@ export async function registerWorkspaceTools(
     title: "Read a page",
     description:
       "Read a page as markdown, with its sub-pages and (for database rows) its property values.",
-    inputSchema: { page_id: z.string().describe("page id from search or list_databases") },
+    inputSchema: {
+      page_id: z.string().describe("page id from search or list_databases"),
+      include_block_ids: z
+        .boolean()
+        .optional()
+        .describe("also list each block's id, for delete_blocks"),
+    },
   },
-  tool<{ page_id: string }>(async ({ page_id }, { supabase }) => api.readPage(supabase, page_id)),
+  tool<{ page_id: string; include_block_ids?: boolean }>(
+    async ({ page_id, include_block_ids }, { supabase }) =>
+      api.readPage(supabase, page_id, { includeBlockIds: include_block_ids }),
+  ),
   );
 
   server.registerTool(
@@ -203,6 +220,110 @@ export async function registerWorkspaceTools(
   tool<{ page_id: string; properties: Record<string, unknown>; title?: string }>(
     async (args, { supabase }) =>
       api.updateRowProperties(supabase, args.page_id, args.properties, args.title),
+  ),
+  );
+
+  // Destructive tools ------------------------------------------------------
+  // Deleting a page archives it by default: an agent acting on a misread
+  // instruction should not be able to destroy a page tree, and `restore_page`
+  // gives the way back. `permanent` is the explicit opt out.
+
+  server.registerTool(
+  "delete_page",
+  {
+    title: "Delete a page",
+    description:
+      "Archive a page, or delete it outright with permanent: true. Archiving is reversible with restore_page; a permanent delete is not. Sub-pages go with it either way, so deleting a database also removes its rows, and deleting a row deletes that row's page. Works on ordinary pages, database pages and rows alike.",
+    annotations: { destructiveHint: true, idempotentHint: true },
+    inputSchema: {
+      page_id: z.string(),
+      permanent: z
+        .boolean()
+        .optional()
+        .describe("delete outright instead of archiving; cannot be undone"),
+    },
+  },
+  tool<{ page_id: string; permanent?: boolean }>(async ({ page_id, permanent }, { supabase }) =>
+    deletePage(supabase, page_id, { permanent }),
+  ),
+  );
+
+  server.registerTool(
+  "restore_page",
+  {
+    title: "Restore an archived page",
+    description:
+      "Un-archive a page, along with whatever was archived in the same operation. Page ids come from list_trash. Reports hiddenUnder when the page is back but still sits under an archived ancestor.",
+    annotations: { idempotentHint: true },
+    inputSchema: { page_id: z.string() },
+  },
+  tool<{ page_id: string }>(async ({ page_id }, { supabase }) => restorePage(supabase, page_id)),
+  );
+
+  server.registerTool(
+  "list_trash",
+  {
+    title: "List archived pages",
+    description:
+      "Archived pages, newest first. isRoot marks the page a restore should aim at — the others came along with it. Archived pages are hidden from search and list_databases, so this is the only way to find them.",
+    annotations: { readOnlyHint: true },
+    inputSchema: { limit: z.number().int().min(1).max(200).optional() },
+  },
+  tool<{ limit?: number }>(async ({ limit }, { supabase, workspaceId }) =>
+    listArchivedPages(supabase, workspaceId, limit ?? 50),
+  ),
+  );
+
+  server.registerTool(
+  "clear_cells",
+  {
+    title: "Clear cells on a row",
+    description:
+      "Empty named property values on a database row, leaving the row itself in place. Properties may be referenced by name. To remove the whole row use delete_page.",
+    annotations: { destructiveHint: true, idempotentHint: true },
+    inputSchema: {
+      page_id: z.string().describe("the row's page id"),
+      properties: z.array(z.string()).min(1).describe("property names or ids to empty"),
+    },
+  },
+  tool<{ page_id: string; properties: string[] }>(async ({ page_id, properties }, { supabase }) =>
+    clearRowValues(supabase, page_id, properties),
+  ),
+  );
+
+  server.registerTool(
+  "delete_property",
+  {
+    title: "Delete a database property",
+    description:
+      "Delete a property (a column) from a database, and prune it out of that database's views. Cannot be undone: the values stored under it in existing rows stop being readable.",
+    annotations: { destructiveHint: true },
+    inputSchema: {
+      database_id: z.string(),
+      property: z.string().describe("property name or id"),
+    },
+  },
+  tool<{ database_id: string; property: string }>(async ({ database_id, property }, { supabase }) =>
+    deleteDatabaseProperty(supabase, database_id, property),
+  ),
+  );
+
+  server.registerTool(
+  "delete_blocks",
+  {
+    title: "Delete blocks from a page",
+    description:
+      "Delete content blocks from a page: pass block_ids, or all: true to empty the page body. Nested blocks go with their parent. Cannot be undone. Get ids from read_page with include_block_ids: true.",
+    annotations: { destructiveHint: true },
+    inputSchema: {
+      page_id: z.string(),
+      block_ids: z.array(z.string()).optional(),
+      all: z.boolean().optional().describe("delete every block on the page"),
+    },
+  },
+  tool<{ page_id: string; block_ids?: string[]; all?: boolean }>(
+    async ({ page_id, block_ids, all }, { supabase }) =>
+      deleteBlocks(supabase, page_id, { blockIds: block_ids, all }),
   ),
   );
 }

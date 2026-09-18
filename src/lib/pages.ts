@@ -1,3 +1,4 @@
+import { archiveSubtree } from "@/lib/archive";
 import { keyAfter } from "@/lib/order";
 import { createClient } from "@/lib/supabase/client";
 
@@ -88,10 +89,8 @@ export async function movePage(
 }
 
 export async function archivePage(pageId: string) {
-  const supabase = createClient();
-  const { error } = await supabase
-    .from("pages")
-    .update({ archived_at: new Date().toISOString() })
-    .eq("id", pageId);
-  if (error) throw error;
+  // Sub-pages go with it: a child left unarchived is keyed under a parent the
+  // tree never renders, so it vanishes from the sidebar while search still
+  // finds it.
+  await archiveSubtree(createClient(), pageId);
 }
