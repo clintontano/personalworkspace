@@ -51,7 +51,10 @@ export default async function AppLayout({
   return (
     <div className="flex h-dvh">
       <SidebarShell>
-        <div className="border-b p-4 pr-12 md:pr-4">
+        {/* pr-12 clears the corner button in every breakpoint: the mobile
+            "Close menu" X and the desktop "Collapse sidebar" button both sit
+            at the same top-right spot, just one at a time. */}
+        <div className="border-b p-4 pr-12">
           <p data-testid="workspace-name" className="truncate font-semibold">
             {workspace ? `${workspace.icon ?? ""} ${workspace.name}`.trim() : "No workspace"}
           </p>

@@ -128,3 +128,23 @@
 .bn-block-content[data-content-type="database"] {
   cursor: default;
 }
+
+/*
+ * Desktop sidebar collapse (src/lib/sidebar.ts). Driven by an attribute on
+ * <html> rather than a React class on the sidebar itself, so the pre-paint
+ * head script and the post-hydration effect apply the exact same rule and
+ * never disagree with each other. Scoped to md and up: on narrower screens
+ * the sidebar is the drawer from SidebarShell's `open` state instead, and the
+ * collapse preference does not apply.
+ */
+@media (min-width: 768px) {
+  [data-testid="sidebar"] {
+    transition: width 200ms ease;
+  }
+  html[data-sidebar-collapsed="true"] [data-testid="sidebar"] {
+    width: 0;
+    min-width: 0;
+    border-right-width: 0;
+    overflow: hidden;
+  }
+}
