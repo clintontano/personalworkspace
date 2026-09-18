@@ -1,10 +1,20 @@
 import { expect, test } from "@playwright/test";
+import { createClient } from "@supabase/supabase-js";
 import {
+  countRows,
   createFixtureDatabase,
   createFixturePage,
   deleteFixturePage,
 } from "./fixtures";
 import { openApp } from "./helpers";
+
+/** A signed-out client, the way a public visitor reaches the form RPCs. */
+const anonRpc = () =>
+  createClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+    { auth: { persistSession: false } },
+  );
 
 // Phase 4 happy path: publish a page tree and read it signed out; create a
 // public form and submit a row into the database anonymously. Both arrange
@@ -88,6 +98,60 @@ test("public form writes a row into the database", async ({ page, browser }) => 
     await expect(page.locator(`[data-row-title="${title}"]`)).toBeVisible();
   } finally {
     // deleting the database page removes its rows and forms with it
+    await deleteFixturePage(db.databaseId);
+  }
+});
+
+// Deleting a database archives its page. The form RPCs have to notice, or a
+// published form keeps serving and keeps writing rows into a database the owner
+// deleted. Requires the migration that adds the archived check to
+// get_public_form / submit_public_form.
+test("a published form stops serving once its database is deleted", async ({ page, browser }) => {
+  // Two anonymous page loads either side of a delete, on top of the usual
+  // publish dance — the default 60s is not enough against a dev server.
+  test.setTimeout(150_000);
+  const db = await createFixtureDatabase({ label: "form-archived" });
+
+  try {
+    await openApp(page);
+    await page.goto(`/app/p/${db.databaseId}`);
+    await expect(page.getByTestId("page-title")).toHaveValue(db.title);
+
+    await page.getByRole("button", { name: "Forms" }).click();
+    await expect(page.getByTestId("forms-loading")).toHaveCount(0);
+    await page.getByTestId("create-form").click();
+    const formUrl = await page.getByTestId("form-url").first().inputValue();
+    expect(formUrl).toContain("/f/");
+
+    const anon = await browser.newContext({ storageState: { cookies: [], origins: [] } });
+
+    // it serves while the database is live, so the 404 below means something
+    const live = await anon.newPage();
+    expect((await live.goto(formUrl))?.status()).toBe(200);
+    await live.close();
+
+    // delete the database the way the owner would
+    const sidebarRow = page.locator(`[data-tree-page="${db.title}"]`);
+    await sidebarRow.hover();
+    await sidebarRow.getByLabel("Delete page").click();
+    await expect(sidebarRow).toHaveCount(0, { timeout: 10_000 });
+
+    const afterDelete = await anon.newPage();
+    expect((await afterDelete.goto(formUrl))?.status()).toBe(404);
+    await afterDelete.close();
+    await anon.close();
+
+    // The page 404ing is not enough: submit_public_form is a public RPC, so a
+    // direct call has to be refused too or the form still collects rows into a
+    // database the owner deleted.
+    const slug = formUrl.split("/f/")[1];
+    const { error } = await anonRpc().rpc("submit_public_form", {
+      p_slug: slug,
+      p_data: { title: "should never land" },
+    });
+    expect(error?.message).toContain("form not found");
+    expect(await countRows(db.databaseId)).toBe(0);
+  } finally {
     await deleteFixturePage(db.databaseId);
   }
 });

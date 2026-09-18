@@ -420,3 +420,13 @@ export async function readViewConfig(
 export async function deleteFixtureAutomation(automationId: string) {
   await admin().from("automations").delete().eq("id", automationId);
 }
+
+/** How many rows a database holds, for asserting a write did not happen. */
+export async function countRows(databaseId: string): Promise<number> {
+  const { count, error } = await admin()
+    .from("database_rows")
+    .select("page_id", { count: "exact", head: true })
+    .eq("database_id", databaseId);
+  if (error) throw error;
+  return count ?? 0;
+}
