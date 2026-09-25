@@ -148,6 +148,11 @@ export function PageTree({
 
   const remove = async (id: string) => {
     await archivePage(id);
+    // Refetch here rather than waiting for our own broadcast to echo back:
+    // when the realtime socket is slow or reconnecting, the echo arrives late
+    // or not at all, and the deleted page stayed in the tree. The broadcast is
+    // still sent, for other tabs.
+    void refetch();
     notifyPagesChanged(workspaceId);
     if (pathname === `/app/p/${id}`) router.push("/app");
   };

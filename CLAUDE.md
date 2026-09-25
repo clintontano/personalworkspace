@@ -215,6 +215,10 @@ completeness; the data must outlive the app (markdown/JSON export from Phase 2).
   in the properties jsonb, with no foreign key to do it). Only rows that
   actually pointed at one are written, so the `row_updated` events that
   produces are all honest.
+- The sidebar refetches directly after its own delete rather than waiting for
+  its broadcast to echo back: when the realtime socket is slow or
+  reconnecting, the echo arrives late or never and the deleted row stayed put
+  (seen as an intermittent e2e failure under load).
 - `delete_blocks` scopes ids to the page they are claimed to be on, so a stale
   id cannot remove a block from an unrelated page. `read_page` with
   `include_block_ids` is where the ids come from.
