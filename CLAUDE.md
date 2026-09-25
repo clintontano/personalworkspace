@@ -434,7 +434,10 @@ completeness; the data must outlive the app (markdown/JSON export from Phase 2).
    run ahead.
 3. Every phase ends with the app running locally with seed data + a short
    "what to look at" note.
-4. Commit per phase on a `phase-N-<name>` branch. Never push without asking.
+4. Commit per phase on a `phase-N-<name>` branch, and push that branch freely —
+   a pushed feature branch is a backup and a place to review a diff, not a
+   change to anything. **Never push to `main`, force-push, or merge a PR
+   without asking.** Review still happens on the PR, per rule 2.
 5. Tests cover what silently breaks (ordering, filters, automation rules), not
    exhaustive coverage.
 6. Ask before adding dependencies not listed here and before
