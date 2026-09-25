@@ -251,7 +251,18 @@ try {
   await client.connect(transport);
 
   const { tools } = await client.listTools();
-  check("remote server exposes the same 8 tools", tools.length === 8, String(tools.length));
+  // the same registrations as the stdio server, destructive ones included
+  const names = tools.map((t) => t.name);
+  const expected = [
+    "search", "read_page", "create_page", "append_blocks", "list_databases",
+    "query_database", "create_row", "update_row_properties", "delete_page",
+    "restore_page", "list_trash", "clear_cells", "delete_property", "delete_blocks",
+  ];
+  check(
+    "remote server exposes the same tools as the stdio server",
+    expected.every((name) => names.includes(name)),
+    `${names.length} tools`,
+  );
 
   const result = await client.callTool({
     name: "query_database",
@@ -262,6 +273,27 @@ try {
     "a tool call returns live workspace data",
     Array.isArray(rows) && rows[0]?.title === "Remote row",
     JSON.stringify(rows.map((r: { title: string }) => r.title)),
+  );
+
+  // The destructive tools through the remote client, which carries only an
+  // access token rather than an auth session like the stdio server's.
+  const call = async (name: string, args: Record<string, unknown>) => {
+    const r = await client.callTool({ name, arguments: args });
+    const text = (r.content as { text: string }[])[0].text;
+    if (r.isError) throw new Error(`${name}: ${text}`);
+    return JSON.parse(text);
+  };
+  const doomed = await call("create_page", { title: "E2E~remote-delete" });
+  const archived = await call("delete_page", { page_id: doomed.pageId });
+  const trash = await call("list_trash", {});
+  const restored = await call("restore_page", { page_id: doomed.pageId });
+  const removed = await call("delete_page", { page_id: doomed.pageId, permanent: true });
+  check(
+    "delete, list_trash, restore and permanent delete work over the remote endpoint",
+    archived.mode === "archived" &&
+      trash.some((t: { pageId: string }) => t.pageId === doomed.pageId) &&
+      restored.restoredCount === 1 &&
+      removed.mode === "deleted",
   );
 
   await client.close();
