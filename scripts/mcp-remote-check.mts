@@ -222,12 +222,18 @@ check(
   Boolean(rotated.access_token) && rotated.refresh_token !== tokens.refresh_token,
 );
 
-const reusedRefresh = await exchange({
+// A rotated refresh token stays exchangeable until its successor is used, so a
+// client that lost the response can retry rather than being stranded.
+const retriedRefresh = await exchange({
   grant_type: "refresh_token",
   client_id: registration.client_id,
   refresh_token: tokens.refresh_token,
 });
-check("the old refresh token is revoked after rotation", reusedRefresh.status === 400);
+check(
+  "a refresh whose response was lost can be retried",
+  retriedRefresh.status === 200,
+  String(retriedRefresh.status),
+);
 
 // --------------------------------------------------------------- MCP calls
 
@@ -237,8 +243,7 @@ const fixture = await createFixtureDatabase({
 });
 
 try {
-  // the rotated token, since rotation revokes the grant the first one came
-  // from — this also proves a refreshed token actually works
+  // the rotated token, which also proves a refreshed token actually works
   const transport = new StreamableHTTPClientTransport(new URL(`${base}/api/mcp`), {
     requestInit: { headers: { authorization: `Bearer ${rotated.access_token}` } },
   });
@@ -260,6 +265,19 @@ try {
   );
 
   await client.close();
+
+  // Using the rotated token proved the client received it, which retires the
+  // one it replaced.
+  const supersededRefresh = await exchange({
+    grant_type: "refresh_token",
+    client_id: registration.client_id,
+    refresh_token: tokens.refresh_token,
+  });
+  check(
+    "once the new token is used, the old refresh token is refused",
+    supersededRefresh.status === 400,
+    String(supersededRefresh.status),
+  );
 
   const rejected = await fetch(`${base}/api/mcp`, {
     method: "POST",

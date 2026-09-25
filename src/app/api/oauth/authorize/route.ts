@@ -12,9 +12,11 @@ import { createClient } from "@/lib/supabase/server";
  * OAuth 2.1 authorization endpoint.
  *
  * The user must already be signed into the app; if not they are sent to
- * /login and returned here. Their Supabase refresh token is captured with the
- * grant so the MCP endpoint can act as them under their own RLS rather than
- * falling back to the service role.
+ * /login and returned here. Only *who* approved is recorded. The grant gets a
+ * Supabase session of its own at token exchange, so the MCP endpoint acts as
+ * them under their own RLS without sharing the browser's session: two holders
+ * of one refresh-token family eventually trip Supabase's reuse detection,
+ * which revokes it for both.
  *
  * Errors are only redirected back to the client once the redirect_uri has
  * been validated against the registration — otherwise they are rendered here,
@@ -68,12 +70,18 @@ export async function GET(request: NextRequest) {
     return fail("invalid_target", `This server only issues tokens for ${expected}.`);
   }
 
+  // getUser, not getSession: getSession returns whatever the cookie holds
+  // without verifying it, which is not good enough to decide whose workspace
+  // a grant opens. Only the user's identity is taken from the browser. Its
+  // refresh token may already be dead (the browser keeps looking signed in
+  // until its access token expires), which is exactly why the grant no longer
+  // borrows it.
   const supabase = await createClient();
   const {
-    data: { session },
-  } = await supabase.auth.getSession();
+    data: { user },
+  } = await supabase.auth.getUser();
 
-  if (!session) {
+  if (!user) {
     // Sign in, then come back to this exact authorization request.
     // the sign-in bounce stays on whichever host the user is browsing
     const login = new URL("/login", request.nextUrl.origin);
@@ -83,13 +91,12 @@ export async function GET(request: NextRequest) {
 
   const code = await createAuthorizationCode({
     clientId,
-    userId: session.user.id,
+    userId: user.id,
     redirectUri,
     codeChallenge,
     codeChallengeMethod,
     resource: resource ? canonicalResource(resource) : canonicalResource(expected),
     scope,
-    supabaseRefreshToken: session.refresh_token,
   });
 
   const destination = new URL(redirectUri);

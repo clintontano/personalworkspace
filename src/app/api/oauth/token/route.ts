@@ -2,23 +2,39 @@ import { NextResponse } from "next/server";
 import { hashToken, safeEqual, verifyPkce } from "@/lib/oauth/crypto";
 import {
   consumeAuthorizationCode,
+  createGrant,
+  exchangeRefreshToken,
   getClient,
   issueTokens,
   oauthConfigured,
-  rotateRefreshToken,
 } from "@/lib/oauth/store";
+import { mintUserSession } from "@/lib/oauth/supabase-session";
 
 /**
  * OAuth 2.1 token endpoint: authorization_code and refresh_token grants.
  *
- * Refresh tokens are rotated on every use and the previous grant revoked, as
- * OAuth 2.1 requires for public clients.
+ * The code exchange mints the grant's own Supabase session. Refresh tokens
+ * rotate on every use, but a rotated one stays exchangeable until its
+ * successor is used, so a client that lost a response can retry instead of
+ * being stranded (refresh-policy.ts).
+ *
+ * invalid_grant is reserved for "this grant is over": it makes the client
+ * discard its tokens. A database or auth failure answers 503 instead, which a
+ * client retries with its tokens intact.
  */
 export async function POST(request: Request) {
   if (!oauthConfigured()) {
     return fail("server_error", "OAuth storage is not configured", 500);
   }
+  try {
+    return await exchange(request);
+  } catch (error) {
+    console.error("oauth token: dependency failure", error);
+    return fail("temporarily_unavailable", "Try again shortly", 503);
+  }
+}
 
+async function exchange(request: Request): Promise<Response> {
   const form = await readForm(request);
   if (!form) return fail("invalid_request", "Expected form-encoded or JSON body");
 
@@ -57,22 +73,29 @@ export async function POST(request: Request) {
       return fail("invalid_grant", "PKCE verification failed");
     }
 
-    const tokens = await issueTokens({
+    // A session for this grant alone. Copying the browser's instead is what
+    // let the two trip Supabase's reuse detection and revoke each other.
+    const minted = await mintUserSession(record.user_id);
+    if (!minted.ok) {
+      return fail("invalid_grant", `Could not open a workspace session: ${minted.reason}`);
+    }
+    const grant = await createGrant({
       clientId,
       userId: record.user_id,
       resource: record.resource,
       scope: record.scope,
-      supabaseRefreshToken: record.supabase_refresh_token,
+      session: minted.session,
     });
+    const tokens = await issueTokens(grant, null);
     return tokenResponse(tokens, record.scope);
   }
 
   if (grantType === "refresh_token") {
     const refreshToken = form.get("refresh_token");
     if (!refreshToken) return fail("invalid_request", "refresh_token is required");
-    const tokens = await rotateRefreshToken(refreshToken, clientId);
-    if (!tokens) return fail("invalid_grant", "Refresh token is invalid or revoked");
-    return tokenResponse(tokens, null);
+    const result = await exchangeRefreshToken(refreshToken, clientId);
+    if (!result.ok) return fail("invalid_grant", result.reason);
+    return tokenResponse(result.tokens, result.scope);
   }
 
   return fail("unsupported_grant_type", `Unsupported grant_type: ${grantType ?? "none"}`);
@@ -119,6 +142,12 @@ function tokenResponse(
 function fail(error: string, description: string, status = 400) {
   return NextResponse.json(
     { error, error_description: description },
-    { status, headers: { "cache-control": "no-store" } },
+    {
+      status,
+      headers: {
+        "cache-control": "no-store",
+        ...(status === 503 ? { "retry-after": "5" } : {}),
+      },
+    },
   );
 }

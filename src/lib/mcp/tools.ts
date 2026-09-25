@@ -16,14 +16,18 @@ export type ToolContext = {
   workspaceId: string;
 };
 
-/** Register every workspace tool on `server`, acting as `supabase`. */
+/**
+ * Register every workspace tool on `server`, acting as `supabase`. Pass
+ * `userId` when the client carries only an access token.
+ */
 export async function registerWorkspaceTools(
   server: McpServer,
   supabase: SupabaseClient<Database>,
+  options: { userId?: string } = {},
 ): Promise<void> {
   const ctx: ToolContext = {
     supabase,
-    workspaceId: await api.currentWorkspaceId(supabase),
+    workspaceId: await api.currentWorkspaceId(supabase, options.userId),
   };
 
   const ok = (value: unknown) => ({

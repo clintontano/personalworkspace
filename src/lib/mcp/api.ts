@@ -16,15 +16,23 @@ import { keyAfter } from "@/lib/order";
 
 type Client = SupabaseClient<Database>;
 
-export async function currentWorkspaceId(supabase: Client): Promise<string> {
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-  if (!user) throw new Error("not signed in");
+/**
+ * The caller's workspace. `userId` is for clients that carry only an access
+ * token and so have no auth session to ask (the remote endpoint's, by design).
+ */
+export async function currentWorkspaceId(supabase: Client, userId?: string): Promise<string> {
+  let id = userId;
+  if (!id) {
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
+    if (!user) throw new Error("not signed in");
+    id = user.id;
+  }
   const { data, error } = await supabase
     .from("workspace_members")
     .select("workspace_id")
-    .eq("user_id", user.id)
+    .eq("user_id", id)
     .limit(1)
     .maybeSingle();
   if (error) throw error;

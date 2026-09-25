@@ -126,18 +126,41 @@ completeness; the data must outlive the app (markdown/JSON export from Phase 2).
 - S256 PKCE only, exact redirect-URI matching, single-use codes, rotating
   refresh tokens, and audience binding against this deployment's `/api/mcp`.
   Tokens and codes are stored as sha256 hashes.
-- **It still runs under the user's RLS.** The authorize step captures the
-  signed-in user's Supabase refresh token with the grant, and `/api/mcp`
-  rebuilds *their* session per request — the service role is used only for
-  the OAuth tables, never for workspace data.
-- **Supabase rotates that refresh token on every use** and revokes the old one
-  after a short reuse window, so the rotated value must be written back
-  (`openUserSession` + `updateSupabaseRefreshToken`). Discarding it left the
-  stored token dead within minutes and the connector fell to needs-auth. The
-  write-back is conditional and best-effort: concurrent requests both refresh,
-  and losing that race must not fail an otherwise valid request.
-  `rotateRefreshToken` re-reads the current value rather than copying forward
-  the one it captured, which would hand a new grant a dead token.
+- **It still runs under the user's RLS.** Each grant owns a Supabase session
+  for the approving user, and `/api/mcp` calls the workspace with *its* access
+  token — the service role is used only for the OAuth tables (and to mint that
+  session), never for workspace data.
+- **Each grant has a Supabase session of its own** (`oauth_grants`), minted
+  at code exchange with `generateLink` + `verifyOtp` (no email is sent). The
+  grant used to borrow the *browser's* session, so the two shared one
+  refresh-token family. Supabase forgives presenting the direct parent of the
+  active token (a lost response), but anything older, past the ~10s reuse
+  interval, reads as theft (`refresh_token_already_used`) and revokes the
+  whole family. Once the connector was two rotations ahead, the browser's next
+  refresh killed both. That was the connector going stale; reconnecting often
+  failed too, because the browser still looked signed in and the new grant
+  copied its already-dead token. Reproduced against the real project before
+  fixing; `grant-session.test.ts` fakes those exact rules.
+- **The grant's session is refreshed only near expiry** (`openGrantSession`),
+  not per request, and written back by **compare-and-swap on the consumed
+  token**, so a slow request can never put an older token back. The MCP
+  client gets only the access token (`userScopedClient`): supabase-js holding
+  no refresh token means no library code can rotate it behind the swap.
+- **Rotation cannot strand the client** (`refresh-policy.ts`). A rotated
+  refresh token stays exchangeable until its successor is used, and the new
+  row is inserted before the old one is marked, so a lost response or a crash
+  mid-refresh is retryable. Old access tokens stay valid until they expire,
+  so requests in flight at a refresh succeed.
+- **invalid_grant means "reconnect"; 503 means "retry".** A dead grant
+  session revokes the grant, so the next refresh says `invalid_grant` and the
+  client re-authorizes. That replaced Claude looping six refreshes, each
+  "succeeding" on a copy of the dead session. Database or auth outages throw
+  and answer 503, never `invalid_grant` or 401.
+- `npm run mcp:lifecycle [baseUrl]` drives register → authorize → exchange →
+  tool call → forced expiry → refresh → tool call, then the failure modes
+  above (parallel calls at session expiry, the browser tripping reuse
+  detection, a lost refresh response, a session that genuinely ends). It
+  forces expiry through the service role and deletes its client afterwards.
 - **One canonical origin** (`src/lib/oauth/origin.ts`): every OAuth document
   and the token audience name the same host, taken from
   `OAUTH_ISSUER_ORIGIN`, else Vercel's `VERCEL_PROJECT_PRODUCTION_URL`, else
@@ -149,8 +172,13 @@ completeness; the data must outlive the app (markdown/JSON export from Phase 2).
 - **The OAuth tables had to be created by hand** (`scripts/oauth_setup.sql`):
   `supabase db push` recorded those migrations in the history without
   committing their DDL, leaving the history claiming tables that did not
-  exist. If a push ever hangs and is killed, verify the schema rather than
-  trusting `migration list`.
+  exist — the four `*_oauth_*` migrations of 2026-08-30 are empty files. If a
+  push ever hangs and is killed, verify the schema rather than trusting
+  `migration list`. `oauth_grants` came later, in
+  `20260925010000_oauth_grant_sessions.sql`; a fresh database needs
+  `oauth_setup.sql` and then that migration. This machine's CLI login lacks
+  SQL privileges (`db push` and `db query --linked` both 403), so schema
+  changes go through the dashboard SQL editor.
 
 ## MCP server
 
