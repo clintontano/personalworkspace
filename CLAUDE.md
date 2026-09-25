@@ -97,6 +97,28 @@ completeness; the data must outlive the app (markdown/JSON export from Phase 2).
   backlinks/rollups force a junction table. Delete paths must clean up
   dangling refs.
 
+## Week views
+
+- A fifth view type beside table/board/list/calendar, for plans that run in
+  numbered weeks ("Week 1", "Week 2") rather than months.
+- **Week numbers are derived, never stored on a row.** `config.weekAnchor`
+  holds a Monday; every week is counted from it. A replan moves the anchor and
+  the whole plan renumbers itself, which is the failure the old approach had:
+  a hand-maintained "Week" select drifts out of step the first time dates move.
+- Weeks run Monday to Sunday so nothing falls between two sections (Sunday
+  work is real work).
+- `config.dateProperty` places a row; the optional `config.endDateProperty`
+  makes a row that spans weeks appear in each week it overlaps, muted and
+  marked "cont." after its first. A span longer than 53 weeks is clamped so a
+  mistyped year cannot render thousands of sections.
+- The rendered run covers every occupied week and always reaches the current
+  week, so an empty stretch ahead still shows where you are. Rows with no
+  start date collect in a "No date" section rather than disappearing.
+- The arithmetic is pure and unit-tested (`src/lib/calendar/week.ts`), done on
+  UTC midnights built from the date parts: `new Date("2026-09-21")` is UTC
+  midnight, which is the previous day west of Greenwich and would file rows
+  one week early in Accra.
+
 ## Mail
 
 - Gmail is read-only (`gmail.readonly`) and optional: without OAuth
@@ -412,7 +434,10 @@ completeness; the data must outlive the app (markdown/JSON export from Phase 2).
    run ahead.
 3. Every phase ends with the app running locally with seed data + a short
    "what to look at" note.
-4. Commit per phase on a `phase-N-<name>` branch. Never push without asking.
+4. Commit per phase on a `phase-N-<name>` branch, and push that branch freely —
+   a pushed feature branch is a backup and a place to review a diff, not a
+   change to anything. **Never push to `main`, force-push, or merge a PR
+   without asking.** Review still happens on the PR, per rule 2.
 5. Tests cover what silently breaks (ordering, filters, automation rules), not
    exhaustive coverage.
 6. Ask before adding dependencies not listed here and before
@@ -428,7 +453,8 @@ completeness; the data must outlive the app (markdown/JSON export from Phase 2).
 - [x] **Phase 2 — Databases**: property types, rows-as-pages, table view
       (filter/sort/group), board view, query layer, markdown/JSON export
 - [x] **Phase 3 — Calendar**: calendar view over date properties; Google
-      Calendar two-way sync (needs GOOGLE_CLIENT_ID/SECRET to activate)
+      Calendar two-way sync (needs GOOGLE_CLIENT_ID/SECRET to activate);
+      week view (numbered Monday-to-Sunday sections from an anchor date)
 - [x] **Phase 4 — Forms & sites**: public form → database row; publish page
       tree to public slug
 - [x] **Phase 5 — Automations**: declarative jsonb trigger/action rules, edge

@@ -27,6 +27,7 @@ import { keyForMove, type DropPosition } from "@/lib/reorder";
 import { archivePage, renamePage } from "@/lib/pages";
 import { notifyPagesChanged } from "@/lib/realtime";
 import { updateRowProperties } from "@/lib/db/data";
+import { mondayOf, todayIso } from "@/lib/calendar/week";
 import { cn } from "@/lib/utils";
 import { ShareMenu } from "@/components/share/share-menu";
 import { BoardView } from "./board-view";
@@ -34,6 +35,7 @@ import { FormsMenu } from "./forms-menu";
 import { CalendarView } from "./calendar-view";
 import { ListView } from "./list-view";
 import { TableView } from "./table-view";
+import { WeekView } from "./week-view";
 import { ViewToolbar } from "./view-toolbar";
 
 const SELECT_DEFAULT_OPTIONS = [
@@ -188,12 +190,20 @@ export function DatabaseScreen({
 
   const onAddView = async (type: ViewType) => {
     const name = type.charAt(0).toUpperCase() + type.slice(1);
+    const dates = properties.filter((p) => p.type === "date");
     const config: ViewConfig =
-      type === "board" || type === "calendar"
-        ? type === "board"
-          ? { groupBy: properties.find((p) => p.type === "select")?.id }
-          : { dateProperty: properties.find((p) => p.type === "date")?.id }
-        : {};
+      type === "board"
+        ? { groupBy: properties.find((p) => p.type === "select")?.id }
+        : type === "calendar"
+          ? { dateProperty: dates[0]?.id }
+          : type === "week"
+            ? {
+                dateProperty: dates[0]?.id,
+                endDateProperty: dates[1]?.id,
+                // Week 1 is the week you create the view in, until it is moved.
+                weekAnchor: mondayOf(todayIso()) ?? todayIso(),
+              }
+            : {};
     const view = await createView(databasePageId, workspaceId, type, name, config);
     setViews((prev) => [...prev, view]);
     setActiveViewId(view.id);
@@ -265,7 +275,7 @@ export function DatabaseScreen({
               </Button>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="start">
-              {(["table", "board", "list", "calendar"] as ViewType[]).map((t) => (
+              {(["table", "board", "list", "calendar", "week"] as ViewType[]).map((t) => (
                 <DropdownMenuItem key={t} onClick={() => void onAddView(t)}>
                   {t.charAt(0).toUpperCase() + t.slice(1)}
                 </DropdownMenuItem>
@@ -291,6 +301,7 @@ export function DatabaseScreen({
               config={activeView.config}
               onConfigChange={onConfigChange}
               showGroupBy={activeView.type === "table" || activeView.type === "board"}
+              showWeeks={activeView.type === "week"}
             />
           ) : null}
           <Button
@@ -317,6 +328,23 @@ export function DatabaseScreen({
         />
       ) : activeView.type === "list" ? (
         <ListView rows={visibleRows} properties={visibleProperties} />
+      ) : activeView.type === "week" ? (
+        <WeekView
+          rows={visibleRows}
+          properties={visibleProperties}
+          startProperty={
+            activeView.config.dateProperty
+              ? propertiesById.get(activeView.config.dateProperty)
+              : properties.find((p) => p.type === "date")
+          }
+          endProperty={
+            activeView.config.endDateProperty
+              ? propertiesById.get(activeView.config.endDateProperty)
+              : undefined
+          }
+          anchor={activeView.config.weekAnchor ?? todayIso()}
+          onAddRow={(presets) => void onAddRow(presets)}
+        />
       ) : activeView.type === "calendar" ? (
         <CalendarView
           rows={visibleRows}

@@ -6,7 +6,7 @@ import type { Property, PropertyConfig, PropertyType, PropertyValue, Row } from 
 import type { Sort } from "./sorts";
 import { pruneViewsOfProperty } from "./view-config";
 
-export type ViewType = "table" | "board" | "list" | "calendar";
+export type ViewType = "table" | "board" | "list" | "calendar" | "week";
 
 export type ViewConfig = {
   filter?: FilterGroup;
@@ -15,8 +15,12 @@ export type ViewConfig = {
   groupBy?: string;
   /** property ids hidden in this view */
   hidden?: string[];
-  /** calendar: the date property to place rows by */
+  /** calendar, week: the date property to place rows by */
   dateProperty?: string;
+  /** week: optional end date, so a row spanning weeks shows in each of them */
+  endDateProperty?: string;
+  /** week: a date inside the week that counts as Week 1 (yyyy-mm-dd) */
+  weekAnchor?: string;
   /** table: pixel widths keyed by property id, plus "title" for the first column */
   columnWidths?: Record<string, number>;
 };
