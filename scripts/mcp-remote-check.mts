@@ -323,6 +323,23 @@ try {
   check("a forged bearer token is rejected", rejected.status === 401, String(rejected.status));
 } finally {
   await deleteFixturePage(fixture.databaseId);
+
+  // Every code exchange mints a Supabase session for the user, so a test
+  // client left behind is a live session on their account. Sign it out, then
+  // delete the client (its grants and tokens cascade).
+  const admin = createClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.SUPABASE_SERVICE_ROLE_KEY!,
+    { auth: { persistSession: false, autoRefreshToken: false } },
+  );
+  const { data: grants } = await admin
+    .from("oauth_grants")
+    .select("session_access_token")
+    .eq("client_id", registration.client_id);
+  for (const grant of grants ?? []) {
+    await admin.auth.admin.signOut(grant.session_access_token, "local");
+  }
+  await admin.from("oauth_clients").delete().eq("client_id", registration.client_id);
 }
 
 const failed = checks.filter((c) => !c.ok);
