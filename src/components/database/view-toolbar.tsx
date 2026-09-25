@@ -1,6 +1,6 @@
 "use client";
 
-import { ArrowUpDown, Eye, ListFilter, Plus, X } from "lucide-react";
+import { ArrowUpDown, CalendarRange, Eye, ListFilter, Plus, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
   DropdownMenu,
@@ -9,6 +9,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { mondayOf, todayIso } from "@/lib/calendar/week";
 import type { ViewConfig } from "@/lib/db/data";
 import type { FilterCondition, FilterGroup, FilterOp } from "@/lib/db/filters";
 import { isGroup } from "@/lib/db/filters";
@@ -71,11 +72,14 @@ export function ViewToolbar({
   config,
   onConfigChange,
   showGroupBy,
+  showWeeks,
 }: {
   properties: Property[];
   config: ViewConfig;
   onConfigChange: (config: ViewConfig) => void;
   showGroupBy?: boolean;
+  /** week views: which dates to read and where Week 1 starts */
+  showWeeks?: boolean;
 }) {
   const flatConditions = (config.filter?.conditions ?? []).filter(
     (c): c is FilterCondition => !isGroup(c),
@@ -100,6 +104,7 @@ export function ViewToolbar({
   const setSorts = (next: Sort[]) => onConfigChange({ ...config, sorts: next });
 
   const groupable = properties.filter((p) => p.type === "select" || p.type === "checkbox");
+  const dateProperties = properties.filter((p) => p.type === "date");
 
   return (
     <div className="flex items-center gap-1">
@@ -128,6 +133,83 @@ export function ViewToolbar({
             ))}
           </DropdownMenuContent>
         </DropdownMenu>
+      ) : null}
+
+      {showWeeks ? (
+        <Popover>
+          <PopoverTrigger asChild>
+            <Button variant="ghost" size="sm" className="gap-1 text-muted-foreground">
+              <CalendarRange className="h-4 w-4" />
+              Weeks
+            </Button>
+          </PopoverTrigger>
+          <PopoverContent align="end" className="w-[min(320px,calc(100vw-2rem))] p-3">
+            <div className="flex flex-col gap-3">
+              <label className="flex flex-col gap-1 text-xs text-muted-foreground">
+                Start date
+                <select
+                  className="h-8 rounded-md border bg-transparent px-1 text-sm text-foreground"
+                  value={config.dateProperty ?? ""}
+                  onChange={(e) =>
+                    onConfigChange({ ...config, dateProperty: e.target.value || undefined })
+                  }
+                >
+                  <option value="">—</option>
+                  {dateProperties.map((p) => (
+                    <option key={p.id} value={p.id}>{p.name}</option>
+                  ))}
+                </select>
+              </label>
+              <label className="flex flex-col gap-1 text-xs text-muted-foreground">
+                End date (optional)
+                <select
+                  className="h-8 rounded-md border bg-transparent px-1 text-sm text-foreground"
+                  value={config.endDateProperty ?? ""}
+                  onChange={(e) =>
+                    onConfigChange({
+                      ...config,
+                      endDateProperty: e.target.value || undefined,
+                    })
+                  }
+                >
+                  <option value="">—</option>
+                  {dateProperties.map((p) => (
+                    <option key={p.id} value={p.id}>{p.name}</option>
+                  ))}
+                </select>
+              </label>
+              <label className="flex flex-col gap-1 text-xs text-muted-foreground">
+                Week 1 starts
+                <input
+                  type="date"
+                  className="h-8 rounded-md border bg-transparent px-2 text-sm text-foreground"
+                  value={config.weekAnchor ?? ""}
+                  onChange={(e) =>
+                    onConfigChange({
+                      ...config,
+                      weekAnchor: mondayOf(e.target.value) ?? undefined,
+                    })
+                  }
+                />
+              </label>
+              <p className="text-xs text-muted-foreground">
+                Weeks run Monday to Sunday and are numbered from here. Pick any
+                day in the week you want to call Week 1; after a replan, move
+                this date and every week renumbers itself.
+              </p>
+              <Button
+                variant="ghost"
+                size="sm"
+                className="self-start text-muted-foreground"
+                onClick={() =>
+                  onConfigChange({ ...config, weekAnchor: mondayOf(todayIso()) ?? undefined })
+                }
+              >
+                Start at this week
+              </Button>
+            </div>
+          </PopoverContent>
+        </Popover>
       ) : null}
 
       <Popover>
