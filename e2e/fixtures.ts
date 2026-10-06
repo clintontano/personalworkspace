@@ -417,6 +417,66 @@ export async function readViewConfig(
   return (data.config ?? {}) as { columnWidths?: Record<string, number> };
 }
 
+/**
+ * Add a text property to a fixture database and set it on one row. Text is
+ * deliberately not select or date: board cards used to show only those.
+ */
+export async function addFixtureTextProperty(
+  db: FixtureDatabase,
+  name: string,
+  rowTitle: string,
+  value: string,
+): Promise<string> {
+  const { data: last } = await admin()
+    .from("database_properties")
+    .select("order_key")
+    .eq("database_id", db.databaseId)
+    .order("order_key", { ascending: false })
+    .limit(1)
+    .single();
+  const { data: property, error } = await admin()
+    .from("database_properties")
+    .insert({
+      database_id: db.databaseId,
+      workspace_id: await workspaceId(),
+      name,
+      type: "text",
+      config: {} as Json,
+      order_key: generateKeyBetween(last?.order_key ?? null, null),
+    })
+    .select("id")
+    .single();
+  if (error) throw error;
+
+  const rowId = db.rowIds[rowTitle];
+  const { data: row } = await admin()
+    .from("database_rows")
+    .select("properties")
+    .eq("page_id", rowId)
+    .single();
+  const { error: rowError } = await admin()
+    .from("database_rows")
+    .update({ properties: { ...(row!.properties as object), [property.id]: value } as Json })
+    .eq("page_id", rowId);
+  if (rowError) throw rowError;
+  return property.id;
+}
+
+/** A view's config by name, or null when no view has that name. */
+export async function readNamedViewConfig(
+  databaseId: string,
+  name: string,
+): Promise<{ hidden?: string[]; hideEmptyGroups?: boolean } | null> {
+  const { data, error } = await admin()
+    .from("views")
+    .select("config")
+    .eq("database_id", databaseId)
+    .eq("name", name)
+    .maybeSingle();
+  if (error) throw error;
+  return data ? ((data.config ?? {}) as { hidden?: string[]; hideEmptyGroups?: boolean }) : null;
+}
+
 export async function deleteFixtureAutomation(automationId: string) {
   await admin().from("automations").delete().eq("id", automationId);
 }

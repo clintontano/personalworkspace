@@ -14,6 +14,7 @@ import {
   addProperty,
   createRow,
   createView,
+  renameView,
   reorderProperty,
   saveViewConfig,
   type ViewConfig,
@@ -186,6 +187,17 @@ export function DatabaseScreen({
     void reorderProperty(draggedId, orderKey);
   };
 
+  const [renamingViewId, setRenamingViewId] = useState<string | null>(null);
+
+  /** Views are named "Board", "Table"… on creation; this is how they get real names. */
+  const commitRename = (viewId: string, value: string) => {
+    setRenamingViewId(null);
+    const name = value.trim();
+    if (!name || views.find((v) => v.id === viewId)?.name === name) return;
+    setViews((prev) => prev.map((v) => (v.id === viewId ? { ...v, name } : v)));
+    void renameView(viewId, name);
+  };
+
   const onAddView = async (type: ViewType) => {
     const name = type.charAt(0).toUpperCase() + type.slice(1);
     const config: ViewConfig =
@@ -245,19 +257,40 @@ export function DatabaseScreen({
         )}
       >
         <div className="flex items-center gap-1">
-          {views.map((view) => (
-            <button
-              key={view.id}
-              type="button"
-              onClick={() => setActiveViewId(view.id)}
-              className={cn(
-                "rounded-md px-2 py-1 text-sm text-muted-foreground hover:bg-muted",
-                view.id === activeView?.id && "bg-muted font-medium text-foreground",
-              )}
-            >
-              {view.name}
-            </button>
-          ))}
+          {views.map((view) =>
+            renamingViewId === view.id ? (
+              <input
+                key={view.id}
+                aria-label="View name"
+                autoFocus
+                defaultValue={view.name}
+                onFocus={(e) => e.currentTarget.select()}
+                onBlur={(e) => commitRename(view.id, e.currentTarget.value)}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter") e.currentTarget.blur();
+                  if (e.key === "Escape") setRenamingViewId(null);
+                }}
+                className="w-28 rounded-md bg-muted px-2 py-1 text-sm font-medium outline-none ring-1 ring-ring"
+              />
+            ) : (
+              <button
+                key={view.id}
+                type="button"
+                title="Double-click to rename"
+                onClick={() => setActiveViewId(view.id)}
+                onDoubleClick={() => {
+                  setActiveViewId(view.id);
+                  setRenamingViewId(view.id);
+                }}
+                className={cn(
+                  "shrink-0 rounded-md px-2 py-1 text-sm text-muted-foreground hover:bg-muted",
+                  view.id === activeView?.id && "bg-muted font-medium text-foreground",
+                )}
+              >
+                {view.name}
+              </button>
+            ),
+          )}
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
               <Button variant="ghost" size="icon" className="h-7 w-7 text-muted-foreground">
@@ -312,6 +345,7 @@ export function DatabaseScreen({
           rows={visibleRows}
           properties={visibleProperties}
           groupBy={groupByProperty}
+          hideEmptyGroups={activeView.config.hideEmptyGroups}
           onValueChange={onValueChange}
           onAddRow={(presets) => void onAddRow(presets)}
         />
@@ -333,6 +367,7 @@ export function DatabaseScreen({
           rows={visibleRows}
           properties={visibleProperties}
           groupBy={activeView.type === "table" ? groupByProperty : undefined}
+          hideEmptyGroups={activeView.config.hideEmptyGroups}
           columnWidths={activeView.config.columnWidths}
           onTitleChange={onRowTitleChange}
           onValueChange={onValueChange}

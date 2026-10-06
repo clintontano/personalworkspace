@@ -13,6 +13,11 @@ export type ViewConfig = {
   sorts?: Sort[];
   /** table: optional section grouping; board: column property */
   groupBy?: string;
+  /**
+   * Leave out groups with no rows. A select whose options span a long time,
+   * like a "Week" property, otherwise opens on a run of empty past weeks.
+   */
+  hideEmptyGroups?: boolean;
   /** property ids hidden in this view */
   hidden?: string[];
   /** calendar: the date property to place rows by */
@@ -253,6 +258,12 @@ export async function deleteProperty(propertyId: string) {
     .from("database_properties")
     .delete()
     .eq("id", propertyId);
+  if (error) throw error;
+}
+
+export async function renameView(viewId: string, name: string) {
+  const supabase = createClient();
+  const { error } = await supabase.from("views").update({ name }).eq("id", viewId);
   if (error) throw error;
 }
 

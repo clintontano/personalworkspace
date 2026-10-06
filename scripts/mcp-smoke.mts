@@ -106,6 +106,21 @@ try {
     updated.title === "MCP smoke row (updated)" && updated.properties.Status === "Done",
   );
 
+  // A label the select lacks becomes an option, as in Notion, rather than raw
+  // text nothing can read back.
+  await call("update_row_properties", { page_id: row.pageId, properties: { Status: "Blocked" } });
+  const withNewOption = (await call("list_databases")).find(
+    (d: { databaseId: string }) => d.databaseId === fixture.databaseId,
+  );
+  const statusOptions = withNewOption.properties.find((p: { name: string }) => p.name === "Status").options;
+  const blocked = await call("read_page", { page_id: row.pageId });
+  check(
+    "setting a select to a new label creates the option",
+    statusOptions.includes("Blocked") && blocked.properties.Status === "Blocked",
+    statusOptions.join(", "),
+  );
+  await call("update_row_properties", { page_id: row.pageId, properties: { Status: "Done" } });
+
   const page = await call("create_page", {
     title: "MCP smoke page",
     icon: "🤖",

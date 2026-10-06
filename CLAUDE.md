@@ -234,6 +234,12 @@ completeness; the data must outlive the app (markdown/JSON export from Phase 2).
   implementation of filters, sorts and markdown conversion.
 - Property references are forgiving: names or ids, option labels or ids
   (`coerceValue` / `resolveProperty`, unit-tested).
+- **A select label the property lacks becomes a new option**
+  (`withMissingOptions`), as in Notion. Before this, the raw label was stored
+  instead of an option id; nothing reads that back, so the value showed
+  nowhere and boards filed the row under "No value". The Goals Tracker's
+  October weeks ended up that way. `scripts/repair-select-options.mts`
+  (dry run by default, `--apply` to write) remaps such values in existing data.
 - `search_workspace` RPC is SECURITY INVOKER — the caller's RLS applies, so
   search can only return what the caller can already read.
 - Phase 6's happy path is `npm run mcp:check` (drives the real server over
@@ -338,6 +344,19 @@ completeness; the data must outlive the app (markdown/JSON export from Phase 2).
   rather than reflowing every cell.
 - Resizing tracks locally during the drag and persists on pointer-up, so the
   column follows the cursor rather than the network.
+
+## Board views
+
+- Cards show every property the view's visibility menu (the eye) leaves on,
+  one per line as Notion lays them out, except the grouping property and
+  relations (page ids mean nothing on a card). They used to show only the
+  first two selects or dates, raw, ignoring the menu. Dates use
+  `formatDateDisplay` like everywhere else.
+- **Hide empty groups** (`config.hideEmptyGroups`, in the Group menu) drops
+  columns or table sections with no rows. A long-lived select such as "Week"
+  otherwise opens on a run of empty past weeks.
+- Views are renamed by double-clicking their tab; they are created as
+  "Board", "Table" and so on.
 
 ## Theming
 

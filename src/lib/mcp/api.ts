@@ -8,7 +8,14 @@ import type { BlockRowLike } from "@/lib/blocks/sync";
 import type { Database, Json } from "@/lib/database.types";
 import { normalizeDateValue } from "@/lib/db/date-value";
 import { evaluateFilter, type FilterGroup } from "@/lib/db/filters";
-import type { Property, PropertyConfig, PropertyType, PropertyValue, Row } from "@/lib/db/model";
+import type {
+  Property,
+  PropertyConfig,
+  PropertyType,
+  PropertyValue,
+  Row,
+  SelectOption,
+} from "@/lib/db/model";
 import { sortRows, type Sort } from "@/lib/db/sorts";
 import { blocksToMarkdown, inlineToMarkdown } from "@/lib/export/markdown";
 import { markdownToBlocks, type ParsedBlock } from "@/lib/export/markdown-import";
@@ -299,6 +306,73 @@ export function resolveProperty(properties: Property[], reference: string): Prop
   );
 }
 
+const NEW_OPTION_COLORS = ["blue", "green", "purple", "orange", "yellow", "pink", "red", "gray"];
+
+function optionSlug(name: string): string {
+  const slug = name
+    .normalize("NFKD")
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "");
+  return slug || "option";
+}
+
+/**
+ * Add the options a select value names but its property lacks, as Notion does
+ * when you type a new label into a select.
+ *
+ * Without this, `coerceValue` kept an unknown label as a raw string: nothing
+ * reads it back (cells and boards match on option ids), so the value showed
+ * nowhere, and a board grouped by that property put the row under "No value".
+ * The Goals Tracker's new weeks ended up exactly like that.
+ */
+export function withMissingOptions(
+  property: Property,
+  value: unknown,
+): { property: Property; added: SelectOption[] } {
+  if (property.type !== "select" && property.type !== "multi_select") {
+    return { property, added: [] };
+  }
+  const labels = (Array.isArray(value) ? value : [value]).filter(
+    (v): v is string => typeof v === "string" && v !== "",
+  );
+  const options = [...(property.config.options ?? [])];
+  const added: SelectOption[] = [];
+  for (const label of labels) {
+    const known = options.some(
+      (o) => o.id === label || o.name.toLowerCase() === label.toLowerCase(),
+    );
+    if (known) continue;
+    const base = optionSlug(label);
+    let id = base;
+    for (let n = 2; options.some((o) => o.id === id); n += 1) id = `${base}-${n}`;
+    const option = {
+      id,
+      name: label,
+      color: NEW_OPTION_COLORS[options.length % NEW_OPTION_COLORS.length],
+    };
+    options.push(option);
+    added.push(option);
+  }
+  if (added.length === 0) return { property, added };
+  return { property: { ...property, config: { ...property.config, options } }, added };
+}
+
+/** Persist any options `value` needs, returning the property to coerce against. */
+async function ensureOptions(supabase: Client, property: Property, value: unknown): Promise<Property> {
+  const { property: next, added } = withMissingOptions(property, value);
+  if (added.length === 0) return property;
+  const { data, error } = await supabase
+    .from("database_properties")
+    .update({ config: next.config as Json })
+    .eq("id", property.id)
+    .select("id");
+  if (error) throw error;
+  // RLS refuses by matching nothing rather than raising
+  if (!data || data.length === 0) throw new Error(`not allowed to add options to "${property.name}"`);
+  return next;
+}
+
 export function coerceValue(property: Property, value: unknown): PropertyValue {
   switch (property.type) {
     case "select": {
@@ -408,7 +482,7 @@ export async function createRow(
   for (const [key, value] of Object.entries(args.properties ?? {})) {
     const property = resolveProperty(properties, key);
     if (!property) continue;
-    stored[property.id] = coerceValue(property, value);
+    stored[property.id] = coerceValue(await ensureOptions(supabase, property, value), value);
   }
 
   const { data: last } = await supabase
@@ -465,7 +539,7 @@ export async function updateRowProperties(
   for (const [key, value] of Object.entries(updates)) {
     const property = resolveProperty(properties, key);
     if (!property) continue;
-    merged[property.id] = coerceValue(property, value);
+    merged[property.id] = coerceValue(await ensureOptions(supabase, property, value), value);
     applied.push(property.name);
   }
 

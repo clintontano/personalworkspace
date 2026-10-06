@@ -6,6 +6,7 @@ import {
   DropdownMenu,
   DropdownMenuCheckboxItem,
   DropdownMenuContent,
+  DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
@@ -126,6 +127,16 @@ export function ViewToolbar({
                 {p.name}
               </DropdownMenuCheckboxItem>
             ))}
+            <DropdownMenuSeparator />
+            <DropdownMenuCheckboxItem
+              disabled={!config.groupBy}
+              checked={config.hideEmptyGroups === true}
+              onCheckedChange={(checked) =>
+                onConfigChange({ ...config, hideEmptyGroups: checked === true || undefined })
+              }
+            >
+              Hide empty groups
+            </DropdownMenuCheckboxItem>
           </DropdownMenuContent>
         </DropdownMenu>
       ) : null}

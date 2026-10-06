@@ -37,6 +37,7 @@ export function TableView({
   rows,
   properties,
   groupBy,
+  hideEmptyGroups,
   columnWidths,
   onTitleChange,
   onValueChange,
@@ -49,6 +50,7 @@ export function TableView({
   rows: Row[];
   properties: Property[];
   groupBy?: Property;
+  hideEmptyGroups?: boolean;
   columnWidths?: Record<string, number>;
   onTitleChange: (pageId: string, title: string) => void;
   onValueChange: (pageId: string, propertyId: string, value: PropertyValue) => void;
@@ -59,7 +61,7 @@ export function TableView({
   onReorderColumn?: (draggedId: string, targetId: string, position: DropPosition) => void;
 }) {
   const sections = groupBy
-    ? groupRows(rows, groupBy)
+    ? groupRows(rows, groupBy).filter((group) => !hideEmptyGroups || group.rows.length > 0)
     : [{ key: null, label: "", rows }];
 
   // Live width while a resize is in flight; committed on pointer-up so the
